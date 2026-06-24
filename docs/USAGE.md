@@ -245,3 +245,32 @@ cp -r skills/memory-manage ~/.kimi-code/skills/memory-manage
 ```
 
 The Skill encodes when to remember, when to search, and how to trace themes, so you do not have to prompt the agent manually.
+
+## Memory Content Format
+
+When writing memories with `remember`, follow these conventions for consistency.
+
+### Decisions
+
+- Decision content
+- Decision rationale
+- Impact scope
+- Related files
+
+### Rules
+
+- Rule content
+- Scope of application
+- Consequence of violation
+
+### Knowledge
+
+- Knowledge point
+- Applicable scenarios
+- Related files or interfaces
+
+### References
+
+- URL or identifier
+- Why it is relevant
+- When it was last verified
