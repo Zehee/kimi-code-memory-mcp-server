@@ -172,17 +172,17 @@ export function discoverCurrentSession(): WireSession | null {
   const hash = computeWorkspaceHash(cwd);
   const candidates = findCandidateSessionDirs(hash);
 
-  let best = null;
-  let bestSlugDir = null;
+  let best: WireSession | null = null;
+  let bestSlugDir: string | null = null;
   for (const slugDir of candidates) {
     const session = findLatestSessionInDir(slugDir);
-    if (session && (!best || session.mtime > best.mtime)) {
+    if (session && (!best || session.mtime! > best.mtime!)) {
       best = session;
       bestSlugDir = slugDir;
     }
   }
 
-  if (best) {
+  if (best && bestSlugDir) {
     const config = loadMcpConfig();
     config.sessionMappings[cwd] = {
       slugDir: bestSlugDir,
@@ -240,11 +240,12 @@ function truncate(text: unknown, maxLen: number): string {
 
 function summarizeToolArgs(name: string, args: unknown): string {
   if (!args || typeof args !== 'object') return '';
+  const record = args as Record<string, unknown>;
   const priorityKeys = ['path', 'command', 'key', 'query', 'description', 'folder', 'skill', 'url'];
-  const parts = [];
+  const parts: string[] = [];
   for (const key of priorityKeys) {
-    if (args[key] === null || args[key] === undefined) continue;
-    let value = String(args[key]);
+    if (record[key] === null || record[key] === undefined) continue;
+    let value = String(record[key]);
     if (key === 'command') value = truncate(value, 120);
     else value = truncate(value, 200);
     parts.push(`${key}=${value}`);
@@ -283,9 +284,9 @@ export function parseWireFile(
       return resolve({ turns: [], compactionSummaries: [] });
     }
 
-    const turns = new Map();
-    const pendingActions = new Map();
-    const compactionSummaries = [];
+    const turns = new Map<string, WireTurn>();
+    const pendingActions = new Map<string, WireAction>();
+    const compactionSummaries: CompactionSummary[] = [];
     let nextUserTurnId = 0;
 
     function ensureTurn(turnId: string | number): WireTurn {
@@ -299,7 +300,7 @@ export function parseWireFile(
           actions: [],
         });
       }
-      return turns.get(id);
+      return turns.get(id)!;
     }
 
     const stream = fs.createReadStream(wirePath, { encoding: 'utf8' });
@@ -318,9 +319,9 @@ export function parseWireFile(
         const turnId = String(nextUserTurnId);
         nextUserTurnId += 1;
         const turn = ensureTurn(turnId);
-        const text = (event.input || [])
+        const text = ((event.input || []) as Array<{ type?: string; text?: unknown }>)
           .filter((p) => p && p.type === 'text')
-          .map((p) => p.text)
+          .map((p) => String(p.text ?? ''))
           .join('\n');
         turn.user = text;
         if (event.time && !turn.timestamp) {
@@ -562,19 +563,19 @@ export async function loadTurnContext(references: TurnReference[], options: Load
     return { rounds: [], notFound: [] };
   }
 
-  const sessionGroups = new Map();
+  const sessionGroups = new Map<string, Set<number>>();
   for (const ref of validRefs) {
     if (!sessionGroups.has(ref.sessionId)) {
-      sessionGroups.set(ref.sessionId, new Set());
+      sessionGroups.set(ref.sessionId, new Set<number>());
     }
-    sessionGroups.get(ref.sessionId).add(ref.turnId);
+    sessionGroups.get(ref.sessionId)!.add(ref.turnId);
   }
 
   const allSessions = findAllWorkspaceSessions();
   const sessionMap = new Map(allSessions.map((s) => [s.sessionId, s.wire]));
 
-  const rounds = [];
-  const notFound = [];
+  const rounds: Array<{ sessionId: string } & DetailedRound> = [];
+  const notFound: TurnReference[] = [];
 
   for (const [sessionId, turnIds] of sessionGroups.entries()) {
     const wire = sessionMap.get(sessionId);
@@ -598,7 +599,7 @@ export async function loadTurnContext(references: TurnReference[], options: Load
     }
   }
 
-  const orderMap = new Map();
+  const orderMap = new Map<string, number>();
   validRefs.forEach((ref, idx) => {
     const key = `${ref.sessionId}:${ref.turnId}`;
     if (!orderMap.has(key)) orderMap.set(key, idx);
@@ -606,7 +607,7 @@ export async function loadTurnContext(references: TurnReference[], options: Load
   rounds.sort((a, b) => {
     const keyA = `${a.sessionId}:${a.turnId}`;
     const keyB = `${b.sessionId}:${b.turnId}`;
-    return orderMap.get(keyA) - orderMap.get(keyB);
+    return (orderMap.get(keyA) ?? 0) - (orderMap.get(keyB) ?? 0);
   });
 
   return { rounds, notFound };

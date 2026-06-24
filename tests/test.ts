@@ -18,12 +18,14 @@ function cleanup() {
   fs.rmSync(testStoreRoot, { recursive: true, force: true });
 }
 
-function parseJsonResult(toolResult) {
-  const text = toolResult.content.find((c) => c.type === 'text')?.text;
-  return JSON.parse(text);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseJsonResult(toolResult: unknown): any {
+  const result = toolResult as { content: Array<{ type: string; text?: string }> };
+  const text = result.content.find((c) => c.type === 'text')?.text;
+  return JSON.parse(text as string);
 }
 
-async function withClient(fn) {
+async function withClient(fn: (client: Client) => Promise<unknown>) {
   const transport = new StdioClientTransport({
     command: 'npx',
     args: ['tsx', path.join(projectRoot, 'src', 'server.ts')],
@@ -87,7 +89,7 @@ async function testSearch() {
       await client.callTool({ name: 'search', arguments: { query: 'unique_search_term_xyz' } }),
     );
     assert(result.items.length >= 1);
-    assert(result.items.some((i) => i.key === 'searchable-item'));
+    assert(result.items.some((i: { key: string }) => i.key === 'searchable-item'));
   });
 }
 
@@ -356,8 +358,9 @@ async function main() {
     }
     console.log('\nAll tests passed.');
   } catch (err) {
-    console.error(`\nTest failed: ${err.message || err}`);
-    console.error(err.stack);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`\nTest failed: ${message}`);
+    console.error(err instanceof Error ? err.stack : '');
     process.exitCode = 1;
   } finally {
     cleanup();

@@ -9,14 +9,14 @@ import { sanitizeFolder, sanitizeKey, toTitle } from '../utils/validation.js';
 import { parseFrontmatter } from '../utils/frontmatter.js';
 import { findAllWorkspaceSessions, parseWireFile } from '../context/wire-context.js';
 
-function toolResult(data, isError = false) {
+function toolResult(data: unknown, isError = false) {
   return {
     content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
     isError,
   };
 }
 
-function safeParseFile(filePath) {
+function safeParseFile(filePath: string) {
   try {
     const text = fs.readFileSync(filePath, 'utf8');
     return parseFrontmatter(text) || { frontmatter: {}, body: text };
@@ -82,7 +82,7 @@ export function createThemeTools(ctx: Ctx) {
       );
     }
 
-    themeManager.addThemeAssociation(theme, ref);
+    await themeManager.addThemeAssociation(theme, ref);
     return toolResult({ success: true, theme: sanitizeKey(theme), ref });
   }
 
@@ -141,7 +141,7 @@ export function createThemeTools(ctx: Ctx) {
             content: fullTurn
               ? {
                   user: fullTurn.user,
-                  agent: fullTurn.agentText || fullTurn.agent,
+                  agent: fullTurn.agentText || (fullTurn as { agent?: string }).agent,
                   timestamp: fullTurn.timestamp,
                   actions: fullTurn.actions,
                 }
@@ -152,7 +152,7 @@ export function createThemeTools(ctx: Ctx) {
             ...ref,
             content: null,
             refined: null,
-            error: err.message || String(err),
+            error: err instanceof Error ? err.message : String(err),
           });
         }
       }
@@ -202,9 +202,12 @@ export function createThemeTools(ctx: Ctx) {
     }
 
     const refinedTurns = targetTurns.map((turn) =>
-      refinedManager.refineTurn(turn, session.sessionId),
+      refinedManager.refineTurn(
+        { ...turn, timestamp: turn.timestamp || undefined },
+        session.sessionId,
+      ),
     );
-    refinedManager.saveRefinedTurns(session.sessionId, refinedTurns);
+    await refinedManager.saveRefinedTurns(session.sessionId, refinedTurns);
 
     return toolResult({
       success: true,

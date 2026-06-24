@@ -8,16 +8,17 @@ import type { Ctx, OrganizeArgs, SyncWorkspaceIndexArgs } from '../types.js';
 import { ESSENCE_SIZE_LIMIT } from '../config.js';
 import { loadMcpConfig } from '../context/wire-context.js';
 import { parseFrontmatter } from '../utils/frontmatter.js';
+import { atomicWriteFile } from '../utils/paths.js';
 import { toTitle } from '../utils/validation.js';
 
-function toolResult(data, isError = false) {
+function toolResult(data: unknown, isError = false) {
   return {
     content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
     isError,
   };
 }
 
-function safeParseFile(filePath) {
+function safeParseFile(filePath: string) {
   try {
     const text = fs.readFileSync(filePath, 'utf8');
     return parseFrontmatter(text) || { frontmatter: {}, body: text };
@@ -26,7 +27,7 @@ function safeParseFile(filePath) {
   }
 }
 
-function fileStats(filePath) {
+function fileStats(filePath: string) {
   try {
     return fs.statSync(filePath);
   } catch {
@@ -78,10 +79,8 @@ export function createSystemTools(ctx: Ctx) {
     });
   }
 
-  function handleOrganize(args: OrganizeArgs) {
-    const hasContent = typeof args.content === 'string';
-
-    if (!hasContent) {
+  async function handleOrganize(args: OrganizeArgs) {
+    if (typeof args.content !== 'string') {
       const existingEssence = loadEssenceFile();
 
       const pendingMemories = [];
@@ -154,8 +153,8 @@ export function createSystemTools(ctx: Ctx) {
       '\n---\n\n' +
       content;
 
-    fs.writeFileSync(essencePath, fileContent, 'utf8');
-    indexDao.upsertEntry(essencePath);
+    atomicWriteFile(essencePath, fileContent, 'utf8');
+    await indexDao.upsertEntry(essencePath);
 
     return toolResult({
       success: true,
@@ -170,8 +169,8 @@ export function createSystemTools(ctx: Ctx) {
     });
   }
 
-  function handleSyncWorkspaceIndex(args: SyncWorkspaceIndexArgs) {
-    const result = indexDao.reconcileIndex({
+  async function handleSyncWorkspaceIndex(args: SyncWorkspaceIndexArgs) {
+    const result = await indexDao.reconcileIndex({
       folderComments: args.folderComments,
     });
 
@@ -195,7 +194,7 @@ export function createSystemTools(ctx: Ctx) {
     detailed_rounds?: number;
     summary_rounds?: number;
   }) {
-    indexDao.reconcileIndex();
+    await indexDao.reconcileIndex();
 
     const { buildWorkspaceContext } = await import('./context-tools.js').then((m) =>
       m.createContextTools(ctx),

@@ -61,7 +61,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   } catch (err) {
     return {
       content: [
-        { type: 'text', text: JSON.stringify({ error: err.message || String(err) }, null, 2) },
+        {
+          type: 'text',
+          text: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }, null, 2),
+        },
       ],
       isError: true,
     };
@@ -74,6 +77,7 @@ async function main() {
 }
 
 main().catch((err) => {
-  process.stderr.write(`Fatal error: ${err.message || err}\n`);
+  const message = err instanceof Error ? err.message : String(err);
+  process.stderr.write(`Fatal error: ${message}\n`);
   process.exit(1);
 });

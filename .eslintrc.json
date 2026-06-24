@@ -23,5 +23,13 @@
     "eqeqeq": ["error", "always"],
     "@typescript-eslint/no-explicit-any": "warn",
     "@typescript-eslint/ban-ts-comment": "off"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["tests/**/*.ts"],
+      "parserOptions": {
+        "project": "./tsconfig.tests.json"
+      }
+    }
+  ]
 }

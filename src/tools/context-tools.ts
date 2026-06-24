@@ -19,7 +19,7 @@ import {
   loadTurnContext,
 } from '../context/wire-context.js';
 
-function toolResult(data, isError = false) {
+function toolResult(data: unknown, isError = false) {
   return {
     content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
     isError,

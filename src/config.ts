@@ -16,7 +16,14 @@ export const sessionsRoot = path.join(homedir, '.kimi-code', 'sessions');
 export function getStoreRoot(): string {
   const envRoot = process.env.MEMORY_STORE_ROOT;
   if (envRoot) {
-    return path.resolve(envRoot);
+    if (envRoot.includes('\0')) {
+      throw new Error('MEMORY_STORE_ROOT contains invalid null byte');
+    }
+    const resolved = path.resolve(envRoot);
+    if (!path.isAbsolute(resolved)) {
+      throw new Error(`MEMORY_STORE_ROOT must resolve to an absolute path: ${envRoot}`);
+    }
+    return resolved;
   }
   return path.join(homedir, '.kimi-code-memory');
 }

@@ -16,14 +16,14 @@ import type {
 import { sanitizeFolder, sanitizeKey, toTitle } from '../utils/validation.js';
 import { parseFrontmatter } from '../utils/frontmatter.js';
 
-function toolResult(data, isError = false) {
+function toolResult(data: unknown, isError = false) {
   return {
     content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
     isError,
   };
 }
 
-function safeParseFile(filePath) {
+function safeParseFile(filePath: string) {
   try {
     const text = fs.readFileSync(filePath, 'utf8');
     return parseFrontmatter(text) || { frontmatter: {}, body: text };
@@ -32,7 +32,7 @@ function safeParseFile(filePath) {
   }
 }
 
-function fileStats(filePath) {
+function fileStats(filePath: string) {
   try {
     return fs.statSync(filePath);
   } catch {
@@ -41,13 +41,13 @@ function fileStats(filePath) {
 }
 
 export function createMemoryTools(ctx: Ctx) {
-  const { storeRoot, indexDao, themeManager } = ctx;
+  const { storeRoot, indexDao, themeManager, memoryStore } = ctx;
 
-  function resolveFilePath(folder, key) {
+  function resolveFilePath(folder: string, key: string) {
     return path.join(storeRoot, folder, `${sanitizeKey(key)}.md`);
   }
 
-  function handleRemember(args: RememberArgs) {
+  async function handleRemember(args: RememberArgs) {
     const key = args.key;
     if (!key || typeof key !== 'string') {
       return toolResult({ success: false, error: 'Missing or invalid "key"' }, true);
@@ -64,44 +64,14 @@ export function createMemoryTools(ctx: Ctx) {
       ? args.themes.filter((t) => typeof t === 'string')
       : [];
 
-    const folderPath = path.join(storeRoot, folder);
-    fs.mkdirSync(folderPath, { recursive: true });
-
-    const fileName = `${sanitizeKey(key)}.md`;
-    const filePath = path.join(folderPath, fileName);
-
-    let createdAt = new Date().toISOString();
-    let title = toTitle(key);
-
-    if (fs.existsSync(filePath)) {
-      const parsed = safeParseFile(filePath);
-      if (parsed && parsed.frontmatter) {
-        if (parsed.frontmatter.createdAt) createdAt = String(parsed.frontmatter.createdAt);
-        if (parsed.frontmatter.title) title = String(parsed.frontmatter.title);
-      }
-    }
-
-    const updatedAt = new Date().toISOString();
-    const frontmatter = { key, title, tags, createdAt, updatedAt };
-    const fileContent =
-      '---\n' +
-      Object.entries(frontmatter)
-        .map(([k, v]) => {
-          if (Array.isArray(v)) {
-            return `${k}:\n${v.map((item) => `  - ${item}`).join('\n')}`;
-          }
-          return `${k}: '${String(v).replace(/'/g, "''")}'`;
-        })
-        .join('\n') +
-      '\n---\n\n' +
-      content;
-
-    fs.writeFileSync(filePath, fileContent, 'utf8');
-    indexDao.upsertEntry(filePath);
+    const filePath = memoryStore.write(folder, key, content, tags);
+    await indexDao.upsertEntry(filePath);
 
     const sanitizedKey = sanitizeKey(key);
+    const readBack = memoryStore.read(folder, key);
+    const title = typeof readBack?.title === 'string' ? readBack.title : toTitle(key);
     for (const theme of themes) {
-      themeManager.addThemeAssociation(theme, {
+      await themeManager.addThemeAssociation(theme, {
         memoryKey: sanitizedKey,
         folder,
         title,
@@ -111,7 +81,7 @@ export function createMemoryTools(ctx: Ctx) {
     return toolResult({ success: true, filePath, folder, key, themes });
   }
 
-  function handleRecall(args: RecallArgs) {
+  async function handleRecall(args: RecallArgs) {
     const key = args.key;
     if (!key || typeof key !== 'string') {
       return toolResult({ found: false, error: 'Missing or invalid "key"' }, true);
@@ -122,27 +92,22 @@ export function createMemoryTools(ctx: Ctx) {
     if (!folder) {
       return toolResult({ found: false, error: 'Invalid folder path', key }, true);
     }
-    const filePath = resolveFilePath(folder, key);
 
-    if (!fs.existsSync(filePath)) {
+    const readResult = memoryStore.read(folder, key);
+    if (!readResult) {
       return toolResult({ found: false, key, folder });
     }
 
-    const parsed = safeParseFile(filePath);
-    if (!parsed) {
-      return toolResult({ found: false, key, folder, error: 'Failed to read file' }, true);
-    }
-
-    indexDao.upsertEntry(filePath);
+    await indexDao.upsertEntry(readResult.filePath);
 
     return toolResult({
       found: true,
       key,
       folder,
-      content: parsed.body,
-      tags: Array.isArray(parsed.frontmatter.tags) ? (parsed.frontmatter.tags as string[]) : [],
-      createdAt: parsed.frontmatter.createdAt || null,
-      updatedAt: parsed.frontmatter.updatedAt || null,
+      content: readResult.content,
+      tags: Array.isArray(readResult.tags) ? readResult.tags : [],
+      createdAt: readResult.createdAt || null,
+      updatedAt: readResult.updatedAt || null,
     });
   }
 
@@ -285,7 +250,7 @@ export function createMemoryTools(ctx: Ctx) {
     return toolResult({ items });
   }
 
-  function handleDelete(args: DeleteArgs) {
+  async function handleDelete(args: DeleteArgs) {
     const key = args.key;
     if (!key || typeof key !== 'string') {
       return toolResult({ success: false, error: 'Missing or invalid "key"' }, true);
@@ -296,20 +261,20 @@ export function createMemoryTools(ctx: Ctx) {
     if (!folder) {
       return toolResult({ success: false, error: 'Invalid folder path', key }, true);
     }
-    const filePath = resolveFilePath(folder, key);
 
-    if (!fs.existsSync(filePath)) {
+    const filePath = memoryStore.resolveFilePath(folder, key);
+    const relativePath = path.relative(storeRoot, filePath).replace(/\\/g, '/');
+    const deleted = memoryStore.delete(folder, key);
+    if (!deleted) {
       return toolResult({ success: false, key, folder, error: 'Memory not found' }, true);
     }
 
-    const relativePath = path.relative(storeRoot, filePath).replace(/\\/g, '/');
-    fs.unlinkSync(filePath);
-    indexDao.deleteEntryByPath(relativePath);
+    await indexDao.deleteEntryByPath(relativePath);
 
     return toolResult({ success: true, key, folder });
   }
 
-  function handleMove(args: MoveArgs) {
+  async function handleMove(args: MoveArgs) {
     const key = args.key;
     if (!key || typeof key !== 'string') {
       return toolResult({ success: false, error: 'Missing or invalid "key"' }, true);
@@ -333,14 +298,12 @@ export function createMemoryTools(ctx: Ctx) {
     const newKeyRaw = typeof args.newKey === 'string' ? args.newKey : key;
     const newKey = sanitizeKey(newKeyRaw);
 
-    const srcPath = resolveFilePath(folder, key);
+    const srcPath = memoryStore.resolveFilePath(folder, key);
+    const destPath = memoryStore.resolveFilePath(toFolder, newKey);
+
     if (!fs.existsSync(srcPath)) {
       return toolResult({ success: false, key, folder, error: 'Memory not found' }, true);
     }
-
-    const destFolderPath = path.join(storeRoot, toFolder);
-    fs.mkdirSync(destFolderPath, { recursive: true });
-    const destPath = path.join(destFolderPath, `${newKey}.md`);
 
     if (fs.existsSync(destPath)) {
       return toolResult(
@@ -359,29 +322,9 @@ export function createMemoryTools(ctx: Ctx) {
     const oldRelativePath = path.relative(storeRoot, srcPath).replace(/\\/g, '/');
     const newRelativePath = path.relative(storeRoot, destPath).replace(/\\/g, '/');
 
-    fs.renameSync(srcPath, destPath);
+    memoryStore.move(folder, key, toFolder, newKeyRaw);
 
-    if (newKey !== sanitizeKey(key)) {
-      const parsed = safeParseFile(destPath);
-      if (parsed && parsed.frontmatter) {
-        parsed.frontmatter.key = newKeyRaw;
-        const updatedContent =
-          '---\n' +
-          Object.entries(parsed.frontmatter)
-            .map(([k, v]) => {
-              if (Array.isArray(v)) {
-                return `${k}:\n${v.map((item) => `  - ${item}`).join('\n')}`;
-              }
-              return `${k}: '${String(v).replace(/'/g, "''")}'`;
-            })
-            .join('\n') +
-          '\n---\n\n' +
-          parsed.body;
-        fs.writeFileSync(destPath, updatedContent, 'utf8');
-      }
-    }
-
-    indexDao.moveEntry(oldRelativePath, newRelativePath);
+    await indexDao.moveEntry(oldRelativePath, newRelativePath);
 
     return toolResult({ success: true, key, newKey, fromFolder: folder, toFolder });
   }

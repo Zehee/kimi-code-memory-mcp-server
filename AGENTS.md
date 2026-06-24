@@ -1,14 +1,6 @@
-# Kimi Code Memory MCP 启动钩子
-
-本文件作用于所有 Kimi Code CLI 会话。当把它放到 `~/.kimi-code/AGENTS.md` 后，每次会话启动时其中的规则会自动注入 model context。
-
-> 配套项目：https://github.com/Zehee/kimi-code-memory-mcp-server
-
----
-
 ## 强制启动协议
 
-每次会话开始后、回答用户第一个问题或执行任何可能改变项目状态的操作之前，**自动调用** `mcp__agent-memory__bootstrap_workspace()`。
+每次会话开始后、回答用户第一个问题或执行任何可能改变项目状态的操作之前，**必须调用** `mcp__agent-memory__bootstrap_workspace()`。
 
 必须读取并内化：
 1. `essence.md` —— 当前工作区什么最重要

@@ -351,8 +351,10 @@ export function createTools(ctx: Ctx) {
     },
   ];
 
-  function dispatch(name: string, args: Record<string, unknown> = {}) {
-    const handler = handlers[name];
+  type ToolResult = { content: { type: string; text: string }[]; isError: boolean };
+
+  function dispatch(name: string, args: Record<string, unknown> = {}): Promise<ToolResult> {
+    const handler = (handlers as unknown as Record<string, (args: Record<string, unknown>) => ToolResult | Promise<ToolResult>>)[name];
     if (!handler) {
       return Promise.resolve({
         content: [

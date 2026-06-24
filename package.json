@@ -24,10 +24,10 @@
     "dev": "tsx src/server.ts",
     "start": "node dist/server.js",
     "test": "tsx tests/test.ts",
-    "lint": "eslint src",
-    "lint:fix": "eslint src --fix",
+    "lint": "eslint src tests",
+    "lint:fix": "eslint src tests --fix",
     "format": "prettier --write src tests",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json"
   },
   "keywords": [
     "mcp",

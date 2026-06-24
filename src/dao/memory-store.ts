@@ -6,10 +6,12 @@ import fs from 'fs';
 import path from 'path';
 import type { Frontmatter, ParsedFrontmatter } from '../utils/frontmatter.js';
 import { parseFrontmatter, stringifyFrontmatter } from '../utils/frontmatter.js';
+import { safeResolve, atomicWriteFile } from '../utils/paths.js';
 
 export interface MemoryReadResult extends Frontmatter {
   content: string;
   filePath: string;
+  tags: string[];
 }
 
 export interface WriteOptions {
@@ -33,7 +35,7 @@ export class MemoryStore {
   }
 
   resolveFilePath(folder: string, key: string): string {
-    return path.join(this.storeRoot, folder, `${key}.md`);
+    return safeResolve(this.storeRoot, folder, `${key}.md`);
   }
 
   exists(folder: string, key: string): boolean {
@@ -72,7 +74,7 @@ export class MemoryStore {
       updatedAt: now,
     };
 
-    fs.writeFileSync(filePath, stringifyFrontmatter(frontmatter) + content, 'utf8');
+    atomicWriteFile(filePath, stringifyFrontmatter(frontmatter) + content, 'utf8');
     return filePath;
   }
 
@@ -103,7 +105,7 @@ export class MemoryStore {
       if (parsed) {
         parsed.frontmatter.key = newKey;
         parsed.frontmatter.updatedAt = new Date().toISOString();
-        fs.writeFileSync(newPath, stringifyFrontmatter(parsed.frontmatter) + parsed.body, 'utf8');
+        atomicWriteFile(newPath, stringifyFrontmatter(parsed.frontmatter) + parsed.body, 'utf8');
         fs.unlinkSync(oldPath);
         return newPath;
       }
@@ -114,7 +116,7 @@ export class MemoryStore {
   }
 
   listMarkdownFiles(dir: string): string[] {
-    const results = [];
+    const results: string[] = [];
     if (!fs.existsSync(dir)) return results;
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {

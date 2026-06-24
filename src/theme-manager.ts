@@ -5,6 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import { sanitizeKey, toTitle } from './utils/validation.js';
+import { Mutex } from './utils/mutex.js';
 
 export interface ThemeTurnRef {
   sessionId: string;
@@ -39,9 +40,11 @@ export interface ThemeRefInput {
 
 export class ThemeManager {
   themesRoot: string;
+  private mutex: Mutex;
 
   constructor(themesRoot: string) {
     this.themesRoot = themesRoot;
+    this.mutex = new Mutex();
   }
 
   themeFilePath(theme: string): string {
@@ -75,49 +78,51 @@ export class ThemeManager {
       .sort();
   }
 
-  addThemeAssociation(theme: string, ref: ThemeRefInput): void {
-    const safeTheme = sanitizeKey(theme);
-    let association = this.loadTheme(safeTheme);
-    const now = new Date().toISOString();
-    if (!association) {
-      association = {
-        theme: safeTheme,
-        displayName: theme,
-        createdAt: now,
-        updatedAt: now,
-        turns: [],
-        memories: [],
-      };
-    }
-
-    if (ref.sessionId !== undefined && ref.turnId !== undefined) {
-      const exists = association.turns.some(
-        (t) => t.sessionId === ref.sessionId && t.turnId === ref.turnId,
-      );
-      if (!exists) {
-        association.turns.push({
-          sessionId: ref.sessionId,
-          turnId: ref.turnId,
-          timestamp: ref.timestamp || now,
-        });
-        association.updatedAt = now;
+  async addThemeAssociation(theme: string, ref: ThemeRefInput): Promise<void> {
+    return this.mutex.runExclusive(() => {
+      const safeTheme = sanitizeKey(theme);
+      let association = this.loadTheme(safeTheme);
+      const now = new Date().toISOString();
+      if (!association) {
+        association = {
+          theme: safeTheme,
+          displayName: theme,
+          createdAt: now,
+          updatedAt: now,
+          turns: [],
+          memories: [],
+        };
       }
-    }
 
-    if (ref.memoryKey && ref.folder) {
-      const memId = `${ref.folder}/${ref.memoryKey}`;
-      const exists = association.memories.some((m) => `${m.folder}/${m.key}` === memId);
-      if (!exists) {
-        association.memories.push({
-          key: ref.memoryKey,
-          folder: ref.folder,
-          title: ref.title || toTitle(ref.memoryKey),
-          timestamp: ref.timestamp || now,
-        });
-        association.updatedAt = now;
+      if (ref.sessionId !== undefined && ref.turnId !== undefined) {
+        const exists = association.turns.some(
+          (t) => t.sessionId === ref.sessionId && t.turnId === ref.turnId,
+        );
+        if (!exists) {
+          association.turns.push({
+            sessionId: ref.sessionId,
+            turnId: ref.turnId,
+            timestamp: ref.timestamp || now,
+          });
+          association.updatedAt = now;
+        }
       }
-    }
 
-    this.saveTheme(safeTheme, association);
+      if (ref.memoryKey && ref.folder) {
+        const memId = `${ref.folder}/${ref.memoryKey}`;
+        const exists = association.memories.some((m) => `${m.folder}/${m.key}` === memId);
+        if (!exists) {
+          association.memories.push({
+            key: ref.memoryKey,
+            folder: ref.folder,
+            title: ref.title || toTitle(ref.memoryKey),
+            timestamp: ref.timestamp || now,
+          });
+          association.updatedAt = now;
+        }
+      }
+
+      this.saveTheme(safeTheme, association);
+    });
   }
 }

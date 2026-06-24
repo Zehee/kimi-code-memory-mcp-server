@@ -10,6 +10,7 @@
 import fs from 'fs';
 import path from 'path';
 import { sanitizeKey } from './utils/validation.js';
+import { Mutex } from './utils/mutex.js';
 
 export interface RawAction {
   name?: string;
@@ -162,9 +163,11 @@ function pickAgentLead(agentText: string): string | null {
 
 export class RefinedManager {
   refinedRoot: string;
+  private mutex: Mutex;
 
   constructor(refinedRoot: string) {
     this.refinedRoot = refinedRoot;
+    this.mutex = new Mutex();
   }
 
   refinedTurnsPath(sessionId: string): string {
@@ -277,22 +280,24 @@ export class RefinedManager {
     };
   }
 
-  saveRefinedTurns(sessionId: string, refinedTurns: RefinedTurn[]): void {
-    const filePath = this.refinedTurnsPath(sessionId);
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  async saveRefinedTurns(sessionId: string, refinedTurns: RefinedTurn[]): Promise<void> {
+    return this.mutex.runExclusive(() => {
+      const filePath = this.refinedTurnsPath(sessionId);
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
 
-    const existing = this.loadRefinedTurns(sessionId);
-    const merged = new Map(existing.map((t) => [t.turnId, t]));
-    for (const turn of refinedTurns) {
-      merged.set(turn.turnId, turn);
-    }
+      const existing = this.loadRefinedTurns(sessionId);
+      const merged = new Map(existing.map((t) => [t.turnId, t]));
+      for (const turn of refinedTurns) {
+        merged.set(turn.turnId, turn);
+      }
 
-    const tmpPath = filePath + '.tmp';
-    const lines = Array.from(merged.values())
-      .sort((a, b) => a.turnId - b.turnId)
-      .map((t) => JSON.stringify(t));
-    fs.writeFileSync(tmpPath, lines.join('\n'), 'utf8');
-    fs.renameSync(tmpPath, filePath);
+      const tmpPath = filePath + '.tmp';
+      const lines = Array.from(merged.values())
+        .sort((a, b) => a.turnId - b.turnId)
+        .map((t) => JSON.stringify(t));
+      fs.writeFileSync(tmpPath, lines.join('\n'), 'utf8');
+      fs.renameSync(tmpPath, filePath);
+    });
   }
 
   loadRefinedTurns(sessionId: string): RefinedTurn[] {

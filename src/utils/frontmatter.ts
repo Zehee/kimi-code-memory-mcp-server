@@ -9,11 +9,11 @@ export interface ParsedFrontmatter {
   body: string;
 }
 
-function stripQuotes(value) {
+function stripQuotes(value: string): string {
   return value.replace(/^['"]|['"]$/g, '');
 }
 
-export function parseFrontmatter(fileContent): ParsedFrontmatter | null {
+export function parseFrontmatter(fileContent: string): ParsedFrontmatter | null {
   const normalized = fileContent.replace(/\r\n/g, '\n');
   if (!normalized.startsWith('---\n')) return null;
   const end = normalized.indexOf('\n---', 4);
@@ -22,16 +22,18 @@ export function parseFrontmatter(fileContent): ParsedFrontmatter | null {
   const fmText = normalized.slice(4, end);
   const body = normalized.slice(end + 4).replace(/^\n+/, '');
 
-  const frontmatter = {};
-  let currentKey = null;
+  const frontmatter: Frontmatter = {};
+  let currentKey: string | null = null;
   for (const rawLine of fmText.split('\n')) {
     const line = rawLine.trimEnd();
     if (!line.trim()) continue;
 
     const listMatch = line.match(/^(\s+)-\s*(.*)$/);
     if (listMatch && currentKey) {
-      frontmatter[currentKey] = frontmatter[currentKey] || [];
-      frontmatter[currentKey].push(stripQuotes(listMatch[2].trim()));
+      const current = frontmatter[currentKey];
+      if (Array.isArray(current)) {
+        current.push(stripQuotes(listMatch[2].trim()));
+      }
       continue;
     }
 
