@@ -69,6 +69,24 @@ npx kimi-code-memory-mcp-server
 
 重启 Kimi Code CLI 以加载该服务器。
 
+## 可选：安装记忆 Skill
+
+本仓库包含一个配套 Skill（`skills/memory-manage/SKILL.md`），用于教导 Kimi Code CLI 何时以及如何使用记忆工具（remember、search、主题追溯等）。
+
+安装方式：
+
+```bash
+# 克隆或定位到本包，然后将 skill 复制到 Kimi Code skills 目录
+cp -r skills/memory-manage ~/.kimi-code/skills/memory-manage
+```
+
+重启 Kimi Code CLI。该 Skill 会自动加载，并引导 Agent：
+
+- 每次会话开始时引导工作区上下文
+- 将决策/知识/规则写入正确的 folder
+- 做改动前搜索记忆
+- 跨会话追溯主题
+
 ## 快速开始
 
 服务器加载后，Agent 可以自然地调用记忆工具：

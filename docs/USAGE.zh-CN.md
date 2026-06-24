@@ -235,3 +235,13 @@
 3. **做重大决策前** —— `search` 和 `recall` 相关记忆。
 4. **会话结束** —— `organize_memories` 更新工作区精要。
 5. **长期跟踪** —— `tag_theme` 和 `trace_theme` 构建跨会话叙事。
+
+## 配套 Skill
+
+如需自动、按协议驱动地使用这些工具，可安装 `skills/memory-manage/SKILL.md` 中的配套 Skill：
+
+```bash
+cp -r skills/memory-manage ~/.kimi-code/skills/memory-manage
+```
+
+该 Skill 规定了何时写入记忆、何时搜索、如何追溯主题，无需手动提示 Agent。

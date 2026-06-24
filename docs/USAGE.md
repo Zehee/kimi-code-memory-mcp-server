@@ -235,3 +235,13 @@ If you edit Markdown files outside the MCP tools, rebuild the index:
 3. **Before a big decision** — `search` and `recall` related memories.
 4. **End of session** — `organize_memories` to update the workspace essence.
 5. **Long-term tracking** — `tag_theme` and `trace_theme` for cross-session narratives.
+
+## Companion Skill
+
+For automatic, protocol-driven use of these tools, install the companion Skill from `skills/memory-manage/SKILL.md`:
+
+```bash
+cp -r skills/memory-manage ~/.kimi-code/skills/memory-manage
+```
+
+The Skill encodes when to remember, when to search, and how to trace themes, so you do not have to prompt the agent manually.

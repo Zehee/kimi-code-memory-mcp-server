@@ -69,6 +69,24 @@ Edit `~/.kimi-code/mcp.json`:
 
 Restart Kimi Code CLI to load the server.
 
+## Optional: Install the Memory Skill
+
+This repository includes a companion Skill (`skills/memory-manage/SKILL.md`) that teaches Kimi Code CLI when and how to use the memory tools (remember, search, theme tracing, etc.).
+
+To install it:
+
+```bash
+# Clone or locate this package, then copy the skill to your Kimi Code skills directory
+cp -r skills/memory-manage ~/.kimi-code/skills/memory-manage
+```
+
+Restart Kimi Code CLI. The Skill will be loaded automatically and will guide the agent to:
+
+- Bootstrap workspace context at the start of each session
+- Write decisions/knowledge/rules to the right folders
+- Search memory before making changes
+- Trace themes across sessions
+
 ## Quick Start
 
 After the server is loaded, the agent can call memory tools naturally:
