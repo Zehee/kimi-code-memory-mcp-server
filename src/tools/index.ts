@@ -287,14 +287,20 @@ export function createTools(ctx: Ctx) {
     {
       name: 'tag_theme',
       description:
-        'Associate a conversation turn or an existing memory with a theme. Creates the theme file if it does not exist.',
+        'Semantically attach a conversation turn or memory to a theme. Do not use keyword matching: analyze the turn/memory content to confirm it genuinely belongs to the theme before attaching. Creates the theme file if it does not exist.',
       inputSchema: {
         type: 'object',
         properties: {
-          theme: { type: 'string', description: 'Theme identifier' },
-          sessionId: { type: 'string', description: 'Optional session id of a conversation turn' },
+          theme: {
+            type: 'string',
+            description: 'Theme identifier. A theme is a semantic group, not a keyword tag.',
+          },
+          sessionId: {
+            type: 'string',
+            description: 'Optional session id of a conversation turn to attach',
+          },
           turnId: { type: 'number', description: 'Optional turn id within the session' },
-          memoryKey: { type: 'string', description: 'Optional memory key to associate' },
+          memoryKey: { type: 'string', description: 'Optional memory key to attach' },
           memoryFolder: { type: 'string', description: 'Optional memory folder (default: memory)' },
           memoryTitle: {
             type: 'string',
