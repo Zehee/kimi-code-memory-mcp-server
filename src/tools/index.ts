@@ -170,7 +170,8 @@ export function createTools(ctx: Ctx) {
           limit: { type: 'number', description: 'Maximum number of matching rounds to return' },
           cluster_gap_seconds: {
             type: 'number',
-            description: `Maximum seconds between adjacent turns to be considered the same cluster. Default: ${90}.`,
+            description:
+              '相邻 turn 被归为同一「簇」的最大时间间隔（秒）。一个簇代表一段连续的讨论或决策。默认 90 秒；协作节奏慢可适当调大，话题切换快则调小。',
           },
         },
         required: ['query'],

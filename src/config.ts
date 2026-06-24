@@ -44,5 +44,13 @@ export const DEFAULT_RECENT_CHANGE_LIMIT = 5;
 
 export const ESSENCE_SIZE_LIMIT = 15 * 1024; // 15 KB
 
-/** Default gap in seconds used by search_context to cluster adjacent turns. */
+/**
+ * search_context 用于把相邻 turn 聚成「簇」的默认时间间隔（秒）。
+ *
+ * 「簇」是指一小段连续的来回对话，通常围绕同一个决策或讨论展开。
+ * 如果两个相邻 turn 的时间间隔超过这个值，就认为它们属于不同的簇。
+ *
+ * 90 秒适合典型的 agent-user 对话：既能区分开不同话题，又足以保留
+ * 一段流畅讨论的完整性。每次搜索可以通过 cluster_gap_seconds 参数覆盖。
+ */
 export const DEFAULT_CLUSTER_GAP_SECONDS = 90;
