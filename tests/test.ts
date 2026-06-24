@@ -5,6 +5,7 @@ import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import assert from 'assert';
+import { RefinedManager } from '../src/refined-manager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -251,6 +252,57 @@ async function testRefineSessionTurns() {
   });
 }
 
+function testRefineTurnExtraction() {
+  const manager = new RefinedManager('/tmp/refined-test');
+  const turn = {
+    turnId: 1,
+    timestamp: '2026-06-24T12:00:00.000Z',
+    user: 'Please review the migration',
+    agentText: [
+      '## Current Focus',
+      '- Migration to TypeScript',
+      '- Fix package-lock.json',
+      '',
+      '## 已完成',
+      'Completed: tsconfig setup',
+      '修复了：package-lock 同步问题',
+      '',
+      'Next step: push to GitHub',
+      'I will verify CI after the push.',
+    ].join('\n'),
+    actions: [{ name: 'git_push', args: { cwd: '/workspace/project' }, result: 'ok' }],
+  };
+
+  const refined = manager.refineTurn(turn, 'session-1');
+  assert.strictEqual(refined.turnId, 1);
+  assert.strictEqual(refined.sessionId, 'session-1');
+  assert(refined.summary.includes('git_push'), 'summary should include tool names');
+  assert(
+    refined.facts.some((f) => f.includes('TypeScript')),
+    'should extract list items as facts',
+  );
+  assert(
+    refined.facts.some((f) => f.includes('tsconfig setup')),
+    'should extract English action sentences',
+  );
+  assert(
+    refined.facts.some((f) => f.includes('package-lock')),
+    'should extract Chinese action sentences',
+  );
+  assert(
+    refined.categories.focus && refined.categories.focus.includes('Migration to TypeScript'),
+    'should categorize items under Current Focus heading',
+  );
+  assert(
+    refined.categories.completed && refined.categories.completed.some((f) => f.includes('tsconfig')),
+    'should categorize items under 已完成 heading',
+  );
+  assert(
+    refined.notes.some((n) => n.includes('verify CI')),
+    'should keep short declarative fallback notes',
+  );
+}
+
 async function testSearchContextEmpty() {
   await withClient(async (client) => {
     const result = parseJsonResult(
@@ -290,6 +342,7 @@ const tests = [
   testTagThemeAndTrace,
   testListThemes,
   testRefineSessionTurns,
+  testRefineTurnExtraction,
   testSearchContextEmpty,
   testLoadWorkspaceContext,
   testLoadMoreContextInvalid,
