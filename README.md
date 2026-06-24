@@ -87,6 +87,18 @@ Restart Kimi Code CLI. The Skill will be loaded automatically and will guide the
 - Search memory before making changes
 - Trace themes across sessions
 
+## Optional: Install User-Level AGENTS.md Startup Hook
+
+For automatic memory recovery on every session start, copy the bundled `AGENTS.md` to your Kimi Code user directory:
+
+```bash
+cp AGENTS.md ~/.kimi-code/AGENTS.md
+```
+
+This installs a startup hook that tells Kimi Code CLI to call `bootstrap_workspace` at the beginning of every session, and to follow the memory classification and decision-guard rules.
+
+> **Note:** `AGENTS.md` rules are injected into every session. Keep them focused on memory-related conventions only. Do not include tool preferences that belong to other MCP servers.
+
 ## Quick Start
 
 After the server is loaded, the agent can call memory tools naturally:

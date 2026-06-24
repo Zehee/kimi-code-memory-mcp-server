@@ -87,6 +87,18 @@ cp -r skills/memory-manage ~/.kimi-code/skills/memory-manage
 - 做改动前搜索记忆
 - 跨会话追溯主题
 
+## 可选：安装用户级 AGENTS.md 启动钩子
+
+如需每次会话启动时自动恢复记忆，将本仓库自带的 `AGENTS.md` 复制到 Kimi Code 用户目录：
+
+```bash
+cp AGENTS.md ~/.kimi-code/AGENTS.md
+```
+
+这会安装一个启动钩子，让 Kimi Code CLI 在每次会话开始时调用 `bootstrap_workspace`，并遵循记忆分类和决策守卫规则。
+
+> **注意：** `AGENTS.md` 规则会注入到每个会话中，请只保留与记忆相关的约定，不要包含属于其他 MCP server 的工具偏好。
+
 ## 快速开始
 
 服务器加载后，Agent 可以自然地调用记忆工具：
