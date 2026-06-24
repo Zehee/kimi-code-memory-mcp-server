@@ -47,7 +47,13 @@ export function createTools(ctx) {
         type: 'object',
         properties: {
           key: { type: 'string', description: 'Unique identifier used as filename base' },
-          content: { type: 'string', description: 'Markdown body content' },
+          content: {
+            type: 'string',
+            description:
+              'Markdown body content. For decisions include rationale, impact, and related files. ' +
+              'For rules include scope and consequence. For knowledge include scenario and related files/interfaces. ' +
+              'For references include URL and relevance. Example decision: "# Use SQLite\n\n## Rationale\n- Single-file deployment\n- No extra service\n\n## Impact\nAll cache reads/writes go through src/cache.js.\n\n## Related files\nsrc/cache.js, docs/cache.md"',
+          },
           folder: {
             type: 'string',
             description: 'Subfolder under the workspace (default: memory)',

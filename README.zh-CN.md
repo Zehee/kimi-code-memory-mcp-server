@@ -110,8 +110,6 @@ Agent：[调用 tag_theme] theme=cache-design
        → 展示跨会话的相关轮次和决策
 ```
 
-完整工具参考和工作流见 [`docs/USAGE.md`](./docs/USAGE.zh-CN.md)。
-
 ## 存储布局
 
 服务器将数据存储在 `~/.kimi-code-memory/<workspace-id>/` 下：
@@ -210,7 +208,6 @@ src/
 ## 相关文档
 
 - [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) —— 系统设计与数据流
-- [`docs/USAGE.zh-CN.md`](./docs/USAGE.zh-CN.md) —— 工具参考与工作流
 - [`docs/CONTRIBUTING.zh-CN.md`](./docs/CONTRIBUTING.zh-CN.md) —— 如何贡献
 - [`docs/third-party-evaluation.md`](./docs/third-party-evaluation.md) —— 原始设计评估
 

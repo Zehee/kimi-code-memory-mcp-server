@@ -110,8 +110,6 @@ Agent: [calls tag_theme] theme=cache-design
        → shows related turns and decisions across sessions
 ```
 
-See [`docs/USAGE.md`](./docs/USAGE.md) for a complete tool reference and workflow guide.
-
 ## Storage Layout
 
 The server stores data under `~/.kimi-code-memory/<workspace-id>/`:
@@ -210,7 +208,6 @@ src/
 ## Related Documents
 
 - [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — system design and data flow
-- [`docs/USAGE.md`](./docs/USAGE.md) — tool reference and workflows
 - [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md) — how to contribute
 - [`docs/third-party-evaluation.md`](./docs/third-party-evaluation.md) — original design evaluation
 

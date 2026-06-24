@@ -39,4 +39,4 @@ whenToUse: >
 | "列出主题" | `mcp__agent-memory__list_themes` |
 | "精炼轮次" | `mcp__agent-memory__refine_session_turns` |
 
-行为规范（何时 remember、决策守卫、主题追溯协议）见 `AGENTS.md` 或 `docs/USAGE.md`。
+行为规范（何时 remember、决策守卫、主题追溯协议）见 `AGENTS.md`。

@@ -7,7 +7,6 @@
 > 相关文档：
 > - [README.md](../README.md) / [README.zh-CN.md](../README.zh-CN.md) — 项目入口
 > - [docs/ARCHITECTURE.md](./ARCHITECTURE.md) — 系统架构
-> - [docs/USAGE.md](./USAGE.md) / [docs/USAGE.zh-CN.md](./USAGE.zh-CN.md) — 工具使用指南
 > - [docs/CONTRIBUTING.md](./CONTRIBUTING.md) / [docs/CONTRIBUTING.zh-CN.md](./CONTRIBUTING.zh-CN.md) — 贡献指南
 > - [CHANGELOG.md](../CHANGELOG.md) — 版本记录
 
@@ -135,7 +134,7 @@ src/
 - [x] 提供一行安装/运行命令（npm/npx）
 - [x] 补充 `package.json` 元信息（repository、bugs、homepage、files）
 - [x] 添加 GitHub issue/PR 模板和 CI workflow
-- [x] 添加 `ARCHITECTURE.md`、`USAGE.md`、`CONTRIBUTING.md`、`CHANGELOG.md`
+- [x] 添加 `ARCHITECTURE.md`、`CONTRIBUTING.md`、`CHANGELOG.md`
 
 ### 强烈建议：证据补齐
 
