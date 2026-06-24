@@ -27,6 +27,7 @@ export function createTools(ctx: Ctx) {
     load_workspace_context: context.handleLoadWorkspaceContext,
     load_more_context: context.handleLoadMoreContext,
     search_context: context.handleSearchContext,
+    list_search_views: context.handleListSearchViews,
     load_turn_context: context.handleLoadTurnContext,
 
     tag_theme: theme.handleTagTheme,
@@ -169,6 +170,17 @@ export function createTools(ctx: Ctx) {
           limit: { type: 'number', description: 'Maximum number of matching rounds to return' },
         },
         required: ['query'],
+      },
+    },
+    {
+      name: 'list_search_views',
+      description:
+        'List saved search views. Each view records the clusters discovered by a previous search_context call. Use these views as candidate sets before creating or extending a theme.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number', description: 'Maximum number of recent views to return' },
+        },
       },
     },
     {

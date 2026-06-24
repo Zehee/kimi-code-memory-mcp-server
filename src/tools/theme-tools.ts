@@ -213,7 +213,7 @@ export function createThemeTools(ctx: Ctx) {
       success: true,
       sessionId: session.sessionId,
       refinedCount: refinedTurns.length,
-      outputPath: refinedManager.refinedTurnsPath(session.sessionId),
+      outputPath: refinedManager.getDbPath(),
       sample: refinedTurns.slice(0, 2),
     });
   }

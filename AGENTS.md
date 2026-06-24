@@ -69,18 +69,18 @@
 
 ---
 
-## 主题追溯冷启动
+## 主题追溯
 
 当用户要求追溯某个主题时：
 
 1. 确认主题范围
-2. 索要 1-3 个关键词种子
-3. 用 `search_context` 粗筛候选 turns
-4. 经用户确认后，用 `refine_session_turns` 提炼缺失 turns
-5. 用 `tag_theme` 生成/更新 `themes/<theme>.json`
+2. 用 `search_context` 打捞相关 turns（调用时会自动按 90 秒时间簇扩展并提炼命中的 turns）
+3. 用 `list_search_views` 查看最近的搜索视图，作为 theme 挂载的候选集
+4. 对搜索命中的 turns 做语义分析，用 `tag_theme` 把 genuinely belongs to the theme 的 turns 逐个挂载到 `themes/<theme>.json`
+5. 如果候选不足，用新的 query 再次 `search_context` 打捞，生成新的 search view
 6. 用 `trace_theme` 输出主题时间线
 
-禁止没有关键词种子就全量提炼历史对话。
+`search_context` 已内置提炼能力，不需要单独调用 `refine_session_turns`。
 
 ---
 
@@ -107,6 +107,5 @@
 - 禁止用 `folder="notes"` 保存项目相关记忆
 - 禁止写入空 tags
 - 禁止只口头答应而不调用工具
-- 禁止在没有种子关键词的情况下全量提炼历史对话
 - 禁止手动修改 `~/.kimi-code/sessions/` 下的 `wire.jsonl`
 

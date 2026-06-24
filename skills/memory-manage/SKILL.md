@@ -34,9 +34,10 @@ whenToUse: >
 | "同步索引" | `mcp__agent-memory__sync_workspace_index` |
 | "搜索历史对话" | `mcp__agent-memory__search_context` |
 | "加载第 N 轮" | `mcp__agent-memory__load_turn_context` |
+| "查看搜索视图" | `mcp__agent-memory__list_search_views` |
 | "关联到主题" | `mcp__agent-memory__tag_theme` |
 | "追溯主题" | `mcp__agent-memory__trace_theme` |
 | "列出主题" | `mcp__agent-memory__list_themes` |
-| "精炼轮次" | `mcp__agent-memory__refine_session_turns` |
+| "手动精炼轮次" | `mcp__agent-memory__refine_session_turns` |
 
 行为规范（何时 remember、决策守卫、主题追溯协议）见 `AGENTS.md`。

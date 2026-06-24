@@ -254,6 +254,44 @@ async function testRefineSessionTurns() {
   });
 }
 
+async function testRefinedManagerSQLite() {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'refined-sqlite-'));
+  let manager: RefinedManager | null = null;
+  try {
+    manager = new RefinedManager(tmpRoot);
+    const turn = {
+      turnId: 1,
+      timestamp: '2026-06-24T12:00:00.000Z',
+      user: 'Decide on auth',
+      agentText: '- Chose JWT\n- Use httpOnly cookie for refresh',
+      actions: [{ name: 'git_commit' }],
+    };
+    const refined = manager.refineTurn(turn, 'sess-a');
+    await manager.saveRefinedTurns('sess-a', [refined]);
+
+    const loaded = manager.loadRefinedTurns('sess-a');
+    assert.strictEqual(loaded.length, 1);
+    assert.strictEqual(loaded[0].turnId, 1);
+    assert.strictEqual(loaded[0].sessionId, 'sess-a');
+    assert(loaded[0].facts.length >= 2);
+
+    const single = manager.loadRefinedTurn('sess-a', 1);
+    assert(single);
+    assert.strictEqual(single.summary, refined.summary);
+
+    assert(fs.existsSync(path.join(tmpRoot, 'refined.sqlite')));
+    manager.close();
+    manager = null;
+  } finally {
+    if (manager) manager.close();
+    try {
+      fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    } catch {
+      // Windows may briefly retain the SQLite file lock after close; ignore cleanup failure.
+    }
+  }
+}
+
 function testRefineTurnExtraction() {
   const manager = new RefinedManager('/tmp/refined-test');
   const turn = {
@@ -311,6 +349,15 @@ async function testSearchContextEmpty() {
       await client.callTool({ name: 'search_context', arguments: { query: 'nonexistent-xyz' } }),
     );
     assert(Array.isArray(result.matches));
+    assert(Array.isArray(result.clusters));
+    assert.strictEqual(result.refinedCount, 0);
+  });
+}
+
+async function testListSearchViews() {
+  await withClient(async (client) => {
+    const result = parseJsonResult(await client.callTool({ name: 'list_search_views', arguments: {} }));
+    assert(Array.isArray(result.views));
   });
 }
 
@@ -344,8 +391,10 @@ const tests = [
   testTagThemeAndTrace,
   testListThemes,
   testRefineSessionTurns,
+  testRefinedManagerSQLite,
   testRefineTurnExtraction,
   testSearchContextEmpty,
+  testListSearchViews,
   testLoadWorkspaceContext,
   testLoadMoreContextInvalid,
 ];

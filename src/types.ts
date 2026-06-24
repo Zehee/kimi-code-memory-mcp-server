@@ -70,6 +70,10 @@ export interface SearchContextArgs {
   limit?: number;
 }
 
+export interface ListSearchViewsArgs {
+  limit?: number;
+}
+
 export interface LoadTurnContextArgs {
   references: unknown[];
 }

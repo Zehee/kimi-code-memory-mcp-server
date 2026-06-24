@@ -1,5 +1,8 @@
 /**
- * Refined turn storage and extraction.
+ * Refined turn storage and extraction backed by SQLite.
+ *
+ * Refined turns are a local derived index / cache of conversation wires.
+ * They are not user-facing memory assets; user memory stays in Markdown files.
  *
  * Extraction rules are intentionally local and deterministic: we look for
  * explicit structural cues (list items, action-keywords, headings) rather than
@@ -9,7 +12,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { sanitizeKey } from './utils/validation.js';
+import Database from 'better-sqlite3';
 import { Mutex } from './utils/mutex.js';
 
 export interface RawAction {
@@ -163,15 +166,35 @@ function pickAgentLead(agentText: string): string | null {
 
 export class RefinedManager {
   refinedRoot: string;
+  private dbPath: string;
+  private db: Database.Database;
   private mutex: Mutex;
 
   constructor(refinedRoot: string) {
     this.refinedRoot = refinedRoot;
+    this.dbPath = path.join(refinedRoot, 'refined.sqlite');
+    fs.mkdirSync(refinedRoot, { recursive: true });
+    this.db = new Database(this.dbPath);
     this.mutex = new Mutex();
+    this.initDb();
   }
 
-  refinedTurnsPath(sessionId: string): string {
-    return path.join(this.refinedRoot, `${sanitizeKey(sessionId)}.jsonl`);
+  private initDb(): void {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS refined_turns (
+        session_id TEXT NOT NULL,
+        turn_id INTEGER NOT NULL,
+        timestamp TEXT,
+        summary TEXT,
+        facts TEXT,
+        notes TEXT,
+        entities TEXT,
+        categories TEXT,
+        PRIMARY KEY (session_id, turn_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_refined_session ON refined_turns(session_id);
+      CREATE INDEX IF NOT EXISTS idx_refined_timestamp ON refined_turns(timestamp);
+    `);
   }
 
   refineTurn(turn: RawTurn, sessionId: string): RefinedTurn {
@@ -280,37 +303,105 @@ export class RefinedManager {
     };
   }
 
+  private rowToTurn(row: {
+    session_id: string;
+    turn_id: number;
+    timestamp: string | null;
+    summary: string;
+    facts: string;
+    notes: string;
+    entities: string;
+    categories: string;
+  }): RefinedTurn {
+    return {
+      sessionId: row.session_id,
+      turnId: row.turn_id,
+      timestamp: row.timestamp ?? undefined,
+      summary: row.summary,
+      facts: JSON.parse(row.facts || '[]'),
+      notes: JSON.parse(row.notes || '[]'),
+      entities: JSON.parse(row.entities || '{"files":[],"tools":[],"errors":[]}'),
+      categories: JSON.parse(row.categories || '{}'),
+    };
+  }
+
   async saveRefinedTurns(sessionId: string, refinedTurns: RefinedTurn[]): Promise<void> {
     return this.mutex.runExclusive(() => {
-      const filePath = this.refinedTurnsPath(sessionId);
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      const insert = this.db.prepare(
+        `INSERT OR REPLACE INTO refined_turns
+         (session_id, turn_id, timestamp, summary, facts, notes, entities, categories)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      );
 
-      const existing = this.loadRefinedTurns(sessionId);
+      const existing = this.loadRefinedTurnsSync(sessionId);
       const merged = new Map(existing.map((t) => [t.turnId, t]));
       for (const turn of refinedTurns) {
         merged.set(turn.turnId, turn);
       }
 
-      const tmpPath = filePath + '.tmp';
-      const lines = Array.from(merged.values())
-        .sort((a, b) => a.turnId - b.turnId)
-        .map((t) => JSON.stringify(t));
-      fs.writeFileSync(tmpPath, lines.join('\n'), 'utf8');
-      fs.renameSync(tmpPath, filePath);
+      const transaction = this.db.transaction(() => {
+        for (const turn of merged.values()) {
+          insert.run(
+            turn.sessionId,
+            turn.turnId,
+            turn.timestamp ?? null,
+            turn.summary,
+            JSON.stringify(turn.facts),
+            JSON.stringify(turn.notes),
+            JSON.stringify(turn.entities),
+            JSON.stringify(turn.categories),
+          );
+        }
+      });
+      transaction();
     });
   }
 
   loadRefinedTurns(sessionId: string): RefinedTurn[] {
-    const filePath = this.refinedTurnsPath(sessionId);
-    if (!fs.existsSync(filePath)) return [];
-    try {
-      return fs
-        .readFileSync(filePath, 'utf8')
-        .split(/\r?\n/)
-        .filter(Boolean)
-        .map((line) => JSON.parse(line));
-    } catch {
-      return [];
-    }
+    return this.loadRefinedTurnsSync(sessionId);
+  }
+
+  private loadRefinedTurnsSync(sessionId: string): RefinedTurn[] {
+    const stmt = this.db.prepare(
+      'SELECT * FROM refined_turns WHERE session_id = ? ORDER BY turn_id',
+    );
+    const rows = stmt.all(sessionId) as Array<{
+      session_id: string;
+      turn_id: number;
+      timestamp: string | null;
+      summary: string;
+      facts: string;
+      notes: string;
+      entities: string;
+      categories: string;
+    }>;
+    return rows.map((r) => this.rowToTurn(r));
+  }
+
+  getDbPath(): string {
+    return this.dbPath;
+  }
+
+  loadRefinedTurn(sessionId: string, turnId: number): RefinedTurn | undefined {
+    const stmt = this.db.prepare(
+      'SELECT * FROM refined_turns WHERE session_id = ? AND turn_id = ?',
+    );
+    const row = stmt.get(sessionId, turnId) as
+      | {
+          session_id: string;
+          turn_id: number;
+          timestamp: string | null;
+          summary: string;
+          facts: string;
+          notes: string;
+          entities: string;
+          categories: string;
+        }
+      | undefined;
+    return row ? this.rowToTurn(row) : undefined;
+  }
+
+  close(): void {
+    this.db.close();
   }
 }

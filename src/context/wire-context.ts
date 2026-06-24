@@ -66,6 +66,24 @@ export interface SearchOptions {
   dateTo?: string;
 }
 
+export interface SearchMatch {
+  sessionId: string;
+  turnId: number;
+  timestamp: string | null;
+  score: number;
+  user: string;
+  agent: string;
+  snippet: string;
+  actions: string[];
+}
+
+export interface SearchResult {
+  query: string;
+  totalMatches: number;
+  matches: SearchMatch[];
+  hits: Array<{ sessionId: string; turn: WireTurn }>;
+}
+
 export interface LoadTurnOptions {
   maxReferences?: number;
 }
@@ -510,7 +528,8 @@ export async function searchWireContext(query: string, options: SearchOptions = 
     .filter((t) => t.length > 0);
 
   const sessions = findAllWorkspaceSessions();
-  const matches = [];
+  const matches: SearchMatch[] = [];
+  const hits: Array<{ sessionId: string; turn: WireTurn }> = [];
 
   for (const session of sessions) {
     const { turns } = await parseWireFile(session.wire);
@@ -526,13 +545,14 @@ export async function searchWireContext(query: string, options: SearchOptions = 
       matches.push({
         sessionId: session.sessionId,
         turnId: parseInt(turn.turnId, 10),
-        timestamp: turn.timestamp,
+        timestamp: turn.timestamp || null,
         score,
         user: truncate(turn.user, 1000),
         agent: truncate(turn.agentText, 2000),
         snippet: extractSnippet(fullText, terms, 240),
         actions: turn.actions.map((a) => a.name).filter(Boolean),
       });
+      hits.push({ sessionId: session.sessionId, turn });
     }
   }
 
@@ -541,6 +561,7 @@ export async function searchWireContext(query: string, options: SearchOptions = 
     query,
     totalMatches: matches.length,
     matches: matches.slice(0, limit),
+    hits,
   };
 }
 
