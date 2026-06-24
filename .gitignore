@@ -3,6 +3,9 @@ node_modules/
 yarn.lock
 pnpm-lock.yaml
 
+# Local codegraph index
+.codegraph/
+
 # Runtime data
 store/
 backup/
