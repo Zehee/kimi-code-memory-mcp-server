@@ -2,12 +2,13 @@
  * Tool registry: schemas and dispatch.
  */
 
+import type { Ctx } from '../types.js';
 import { createMemoryTools } from './memory-tools.js';
 import { createContextTools } from './context-tools.js';
 import { createThemeTools } from './theme-tools.js';
 import { createSystemTools } from './system-tools.js';
 
-export function createTools(ctx) {
+export function createTools(ctx: Ctx) {
   const memory = createMemoryTools(ctx);
   const context = createContextTools(ctx);
   const theme = createThemeTools(ctx);
@@ -350,7 +351,7 @@ export function createTools(ctx) {
     },
   ];
 
-  function dispatch(name, args = {}) {
+  function dispatch(name: string, args: Record<string, unknown> = {}) {
     const handler = handlers[name];
     if (!handler) {
       return Promise.resolve({

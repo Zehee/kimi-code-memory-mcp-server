@@ -8,11 +8,46 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import type { ParsedFrontmatter } from '../utils/frontmatter.js';
 import { parseFrontmatter } from '../utils/frontmatter.js';
 import { relativeStorePath } from '../utils/paths.js';
 import { toTitle } from '../utils/validation.js';
 
-const FALLBACK_FOLDER_COMMENTS = {
+export interface IndexEntry {
+  title?: string;
+  tags?: string[];
+  comment?: string;
+}
+
+export interface IndexData {
+  version: string;
+  meta: {
+    lastSyncAt: string | null;
+    structureHash: string | null;
+  };
+  index: Record<string, IndexEntry>;
+}
+
+export interface ReconcileOptions {
+  folderComments?: Record<string, string>;
+}
+
+export interface ReconcileReport {
+  scannedFiles: number;
+  addedEntries: number;
+  removedEntries: number;
+  updatedEntries: number;
+  addedFolders: number;
+}
+
+export interface ReconcileResult {
+  synced: boolean;
+  skipped: boolean;
+  structureHash: string;
+  report: ReconcileReport;
+}
+
+const FALLBACK_FOLDER_COMMENTS: Record<string, string> = {
   memory: '完整记忆索引（按领域分组）',
   decisions: '关键产品/架构决策',
   rules: '协作规则与编码红线',
@@ -26,7 +61,7 @@ const FALLBACK_FOLDER_COMMENTS = {
   essence: '整理后的工作区精要',
 };
 
-function createEmptyIndex() {
+function createEmptyIndex(): IndexData {
   return {
     version: '3-kv',
     meta: { lastSyncAt: null, structureHash: null },
@@ -34,7 +69,7 @@ function createEmptyIndex() {
   };
 }
 
-function safeParseFile(filePath) {
+function safeParseFile(filePath: string): ParsedFrontmatter | null {
   try {
     const text = fs.readFileSync(filePath, 'utf8');
     return parseFrontmatter(text) || { frontmatter: {}, body: text };
@@ -44,17 +79,21 @@ function safeParseFile(filePath) {
 }
 
 export class IndexDao {
-  constructor(storeRoot, options = {}) {
+  storeRoot: string;
+  backupRoot: string;
+  indexCache: IndexData | null;
+
+  constructor(storeRoot: string, options: { backupRoot?: string } = {}) {
     this.storeRoot = storeRoot;
     this.backupRoot = options.backupRoot || path.join(storeRoot, '..', 'backup');
     this.indexCache = null;
   }
 
-  get indexPath() {
+  get indexPath(): string {
     return path.join(this.storeRoot, 'index.json');
   }
 
-  loadIndex() {
+  loadIndex(): IndexData {
     if (this.indexCache) return this.indexCache;
 
     if (!fs.existsSync(this.indexPath)) {
@@ -64,17 +103,34 @@ export class IndexDao {
 
     try {
       const text = fs.readFileSync(this.indexPath, 'utf8');
-      const parsed = JSON.parse(text);
+      const parsed: unknown = JSON.parse(text);
 
-      if (parsed && parsed.version === '3-kv' && typeof parsed.index === 'object') {
-        this.indexCache = parsed;
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        (parsed as { version?: unknown }).version === '3-kv' &&
+        typeof (parsed as { index?: unknown }).index === 'object'
+      ) {
+        this.indexCache = parsed as IndexData;
         return this.indexCache;
       }
 
-      if (parsed && parsed.version === 1 && typeof parsed.entries === 'object') {
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        (parsed as { version?: unknown }).version === 1 &&
+        typeof (parsed as { entries?: unknown }).entries === 'object'
+      ) {
         const backupId = this.getBackupId();
         this.backupIndex(backupId);
-        this.indexCache = this.migrateV1ToV3(parsed);
+        this.indexCache = this.migrateV1ToV3(
+          parsed as {
+            entries: Record<
+              string,
+              { folder: string; key: string; title?: string; tags?: string[] }
+            >;
+          },
+        );
         this.saveIndex(this.indexCache);
         return this.indexCache;
       }
@@ -86,7 +142,7 @@ export class IndexDao {
     return this.indexCache;
   }
 
-  saveIndex(index) {
+  saveIndex(index: IndexData): void {
     index.meta.lastSyncAt = new Date().toISOString();
     const tmpPath = this.indexPath + '.tmp';
     fs.writeFileSync(tmpPath, JSON.stringify(index, null, 2), 'utf8');
@@ -94,11 +150,11 @@ export class IndexDao {
     this.indexCache = index;
   }
 
-  getIndex() {
+  getIndex(): IndexData {
     return this.loadIndex();
   }
 
-  getBackupId() {
+  getBackupId(): string {
     const now = new Date();
     const yy = String(now.getFullYear()).slice(2);
     const mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -111,7 +167,7 @@ export class IndexDao {
     return `${yymmdd}_${String(seq).padStart(2, '0')}`;
   }
 
-  backupIndex(backupId) {
+  backupIndex(backupId: string): { backedUp: boolean; backupPath?: string } {
     if (!fs.existsSync(this.indexPath)) return { backedUp: false };
     const backupPath = path.join(this.backupRoot, backupId);
     fs.mkdirSync(backupPath, { recursive: true });
@@ -120,7 +176,9 @@ export class IndexDao {
     return { backedUp: true, backupPath: dest };
   }
 
-  migrateV1ToV3(v1) {
+  migrateV1ToV3(v1: {
+    entries?: Record<string, { folder?: string; key?: string; title?: string; tags?: string[] }>;
+  }): IndexData {
     const v3 = createEmptyIndex();
     const entries = v1.entries || {};
     for (const id of Object.keys(entries)) {
@@ -148,10 +206,10 @@ export class IndexDao {
     return v3;
   }
 
-  computeStructureHash() {
-    const paths = [];
+  computeStructureHash(): string {
+    const paths: string[] = [];
 
-    const scan = (dir, relativePrefix) => {
+    const scan = (dir: string, relativePrefix: string): boolean => {
       if (!fs.existsSync(dir)) return false;
       const entries = fs.readdirSync(dir, { withFileTypes: true });
       let hasContent = false;
@@ -187,15 +245,17 @@ export class IndexDao {
     return content ? crypto.createHash('md5').update(content).digest('hex') : '';
   }
 
-  buildEntryValueFromFile(filePath) {
+  buildEntryValueFromFile(filePath: string): IndexEntry {
     const parsed = safeParseFile(filePath);
     const key = path.basename(filePath, '.md');
-    const title = parsed?.frontmatter?.title || toTitle(key);
-    const tags = Array.isArray(parsed?.frontmatter?.tags) ? parsed.frontmatter.tags : [];
+    const title = String(parsed?.frontmatter?.title || toTitle(key));
+    const tags = Array.isArray(parsed?.frontmatter?.tags)
+      ? (parsed.frontmatter.tags as string[])
+      : [];
     return { title, tags };
   }
 
-  reconcileIndex(options = {}) {
+  reconcileIndex(options: ReconcileOptions = {}): ReconcileResult {
     const index = this.getIndex();
     const currentHash = this.computeStructureHash();
 
@@ -230,7 +290,7 @@ export class IndexDao {
       };
     }
 
-    const report = {
+    const report: ReconcileReport = {
       scannedFiles: 0,
       addedEntries: 0,
       removedEntries: 0,
@@ -238,9 +298,9 @@ export class IndexDao {
       addedFolders: 0,
     };
 
-    const diskFiles = new Set();
+    const diskFiles = new Set<string>();
 
-    const scanDir = (dir, relativePrefix) => {
+    const scanDir = (dir: string, relativePrefix: string): void => {
       if (!fs.existsSync(dir)) return;
       const entries = fs.readdirSync(dir, { withFileTypes: true });
       for (const entry of entries) {
@@ -307,7 +367,7 @@ export class IndexDao {
     return { synced: true, skipped: false, structureHash: currentHash, report };
   }
 
-  upsertEntry(filePath) {
+  upsertEntry(filePath: string): void {
     const relativePath = relativeStorePath(this.storeRoot, filePath);
     if (!relativePath.endsWith('.md')) return;
 
@@ -329,14 +389,14 @@ export class IndexDao {
     this.saveIndex(index);
   }
 
-  deleteEntryByPath(relativePath) {
+  deleteEntryByPath(relativePath: string): void {
     const index = this.getIndex();
     delete index.index[relativePath];
     index.meta.structureHash = null;
     this.saveIndex(index);
   }
 
-  moveEntry(oldRelativePath, newRelativePath) {
+  moveEntry(oldRelativePath: string, newRelativePath: string): void {
     const index = this.getIndex();
     if (index.index[oldRelativePath]) {
       index.index[newRelativePath] = index.index[oldRelativePath];
@@ -357,14 +417,14 @@ export class IndexDao {
     this.saveIndex(index);
   }
 
-  setFolderComment(folderPath, comment) {
+  setFolderComment(folderPath: string, comment: string): void {
     if (!folderPath.endsWith('/')) folderPath += '/';
     const index = this.getIndex();
     index.index[folderPath] = { comment };
     this.saveIndex(index);
   }
 
-  listRefs(folder) {
+  listRefs(folder?: string): { key: string; folder: string; title: string; tags: string[] }[] {
     const index = this.getIndex().index;
     const prefix = folder ? (folder.endsWith('/') ? folder : `${folder}/`) : '';
     const keys = Object.keys(index).filter((k) => {
@@ -385,17 +445,24 @@ export class IndexDao {
       .sort((a, b) => a.folder.localeCompare(b.folder) || a.key.localeCompare(b.key));
   }
 
-  buildMemoryIndexTree(recentLimit = 5) {
+  buildMemoryIndexTree(recentLimit = 5): string {
     const index = this.getIndex().index;
 
-    const root = {
+    interface TreeNode {
+      name: string;
+      children: Map<string, TreeNode>;
+      files: { key: string; title: string; tags: string[] }[];
+      comment: string;
+    }
+
+    const root: TreeNode = {
       name: 'memory',
       children: new Map(),
       files: [],
       comment: index['memory/']?.comment || '',
     };
 
-    const timeEntries = [];
+    const timeEntries: { fullPath: string; updatedAt: string; createdAt: string }[] = [];
 
     for (const key of Object.keys(index)) {
       if (!key.startsWith('memory/')) continue;
@@ -433,8 +500,8 @@ export class IndexDao {
 
         const filePath = path.join(this.storeRoot, key);
         const parsed = safeParseFile(filePath);
-        const updatedAt = parsed?.frontmatter?.updatedAt || '';
-        const createdAt = parsed?.frontmatter?.createdAt || '';
+        const updatedAt = String(parsed?.frontmatter?.updatedAt || '');
+        const createdAt = String(parsed?.frontmatter?.createdAt || '');
         timeEntries.push({
           fullPath: key.slice(0, -3),
           updatedAt,
@@ -457,8 +524,14 @@ export class IndexDao {
         .map((e) => e.fullPath),
     );
 
-    const renderNode = (node, nodePath, prefix = '', isLast = true, isRoot = false) => {
-      const lines = [];
+    const renderNode = (
+      node: TreeNode,
+      nodePath: string,
+      prefix = '',
+      isLast = true,
+      isRoot = false,
+    ): string[] => {
+      const lines: string[] = [];
       const comment = node.comment;
       if (isRoot) {
         lines.push(`${node.name}/${comment ? ` — ${comment}` : ''}`);
@@ -471,9 +544,16 @@ export class IndexDao {
         a[0].localeCompare(b[0]),
       );
       const allFiles = [...node.files].sort((a, b) => a.key.localeCompare(b.key));
-      const items = [
-        ...childEntries.map(([name, childNode]) => ({ type: 'folder', name, data: childNode })),
-        ...allFiles.map((file) => ({ type: 'file', name: file.key, data: file })),
+      const items: (
+        | { type: 'folder'; name: string; data: TreeNode }
+        | { type: 'file'; name: string; data: { key: string; title: string; tags: string[] } }
+      )[] = [
+        ...childEntries.map(([name, childNode]) => ({
+          type: 'folder' as const,
+          name,
+          data: childNode,
+        })),
+        ...allFiles.map((file) => ({ type: 'file' as const, name: file.key, data: file })),
       ];
 
       for (let i = 0; i < items.length; i++) {

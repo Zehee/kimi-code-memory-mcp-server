@@ -24,8 +24,8 @@ function parseJsonResult(toolResult) {
 
 async function withClient(fn) {
   const transport = new StdioClientTransport({
-    command: 'node',
-    args: [path.join(projectRoot, 'src', 'server.js')],
+    command: 'npx',
+    args: ['tsx', path.join(projectRoot, 'src', 'server.ts')],
   });
   const client = new Client({ name: 'test-client', version: '0.1.0' });
   await client.connect(transport);

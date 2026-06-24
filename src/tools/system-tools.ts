@@ -4,6 +4,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import type { Ctx, OrganizeArgs, SyncWorkspaceIndexArgs } from '../types.js';
 import { ESSENCE_SIZE_LIMIT } from '../config.js';
 import { loadMcpConfig } from '../context/wire-context.js';
 import { parseFrontmatter } from '../utils/frontmatter.js';
@@ -50,7 +51,7 @@ const ESSENCE = {
   ].join('\n'),
 };
 
-export function createSystemTools(ctx) {
+export function createSystemTools(ctx: Ctx) {
   const { cwd, workspaceId, storeRoot, indexDao } = ctx;
 
   function loadEssenceFile() {
@@ -77,7 +78,7 @@ export function createSystemTools(ctx) {
     });
   }
 
-  function handleOrganize(args) {
+  function handleOrganize(args: OrganizeArgs) {
     const hasContent = typeof args.content === 'string';
 
     if (!hasContent) {
@@ -169,7 +170,7 @@ export function createSystemTools(ctx) {
     });
   }
 
-  function handleSyncWorkspaceIndex(args) {
+  function handleSyncWorkspaceIndex(args: SyncWorkspaceIndexArgs) {
     const result = indexDao.reconcileIndex({
       folderComments: args.folderComments,
     });
@@ -190,7 +191,10 @@ export function createSystemTools(ctx) {
     });
   }
 
-  async function handleBootstrapWorkspace(args) {
+  async function handleBootstrapWorkspace(args: {
+    detailed_rounds?: number;
+    summary_rounds?: number;
+  }) {
     indexDao.reconcileIndex();
 
     const { buildWorkspaceContext } = await import('./context-tools.js').then((m) =>

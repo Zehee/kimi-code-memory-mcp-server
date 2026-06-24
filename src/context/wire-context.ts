@@ -8,6 +8,7 @@
 import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
+import type { ContextWindow } from '../config.js';
 import {
   getStoreRoot,
   sessionsRoot,
@@ -16,12 +17,84 @@ import {
 } from '../config.js';
 import { computeWorkspaceHash } from '../utils/paths.js';
 
+export interface McpConfig {
+  version: number;
+  contextWindow: ContextWindow;
+  recentChangeLimit: number;
+  sessionMappings: Record<string, SessionMapping>;
+}
+
+export interface SessionMapping {
+  slugDir: string;
+  discoveredAt: string;
+}
+
+export interface WireSession {
+  sessionId: string;
+  wire: string;
+  mtime?: number;
+  slugDir?: string;
+}
+
+export interface WireAction {
+  name: string;
+  args: string;
+  result: string;
+}
+
+export interface WireTurn {
+  turnId: string;
+  timestamp: string | null;
+  user: string;
+  agentText: string;
+  actions: WireAction[];
+}
+
+export interface CompactionSummary {
+  time: string | null;
+  summary: string;
+}
+
+export interface ContextWindowOverrides {
+  detailedRounds?: number;
+  summaryRounds?: number;
+}
+
+export interface SearchOptions {
+  limit?: number;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface LoadTurnOptions {
+  maxReferences?: number;
+}
+
+export interface TurnReference {
+  sessionId: string;
+  turnId: number;
+}
+
+export interface DetailedRound {
+  turnId: number;
+  timestamp: string | null;
+  user: string;
+  agent: string;
+  actions: WireAction[];
+}
+
+export interface SummaryRound {
+  turnId: number;
+  timestamp: string | null;
+  summary: string;
+}
+
 const mcpConfigPath = path.join(getStoreRoot(), 'mcp-config.json');
 
 /**
  * Load the global MCP configuration, creating defaults if absent.
  */
-export function loadMcpConfig() {
+export function loadMcpConfig(): McpConfig {
   try {
     const text = fs.readFileSync(mcpConfigPath, 'utf8');
     const parsed = JSON.parse(text);
@@ -47,19 +120,19 @@ export function loadMcpConfig() {
 /**
  * Persist the global MCP configuration.
  */
-export function saveMcpConfig(config) {
+export function saveMcpConfig(config: McpConfig): void {
   fs.mkdirSync(path.dirname(mcpConfigPath), { recursive: true });
   fs.writeFileSync(mcpConfigPath, JSON.stringify(config, null, 2), 'utf8');
 }
 
-function normalizeCwd() {
+function normalizeCwd(): string {
   return process.cwd().replace(/\\/g, '/');
 }
 
 /**
  * Find all session directory candidates for a workspace hash.
  */
-function findCandidateSessionDirs(hash) {
+function findCandidateSessionDirs(hash: string): string[] {
   if (!fs.existsSync(sessionsRoot)) return [];
   return fs
     .readdirSync(sessionsRoot, { withFileTypes: true })
@@ -70,7 +143,7 @@ function findCandidateSessionDirs(hash) {
 /**
  * Within a single wd_* directory, find the most recently active session.
  */
-function findLatestSessionInDir(slugDir) {
+function findLatestSessionInDir(slugDir: string): WireSession | null {
   const dir = path.join(sessionsRoot, slugDir);
   if (!fs.existsSync(dir)) return null;
   const sessions = fs
@@ -94,7 +167,7 @@ function findLatestSessionInDir(slugDir) {
 /**
  * Discover the active session for the current workspace and cache the mapping.
  */
-export function discoverCurrentSession() {
+export function discoverCurrentSession(): WireSession | null {
   const cwd = normalizeCwd();
   const hash = computeWorkspaceHash(cwd);
   const candidates = findCandidateSessionDirs(hash);
@@ -124,7 +197,7 @@ export function discoverCurrentSession() {
 /**
  * Resolve the active session wire path, using the cached mapping if valid.
  */
-export function getCurrentSessionWirePath() {
+export function getCurrentSessionWirePath(): WireSession | null {
   const cwd = normalizeCwd();
   const config = loadMcpConfig();
   const mapping = config.sessionMappings[cwd];
@@ -140,7 +213,7 @@ export function getCurrentSessionWirePath() {
 /**
  * Find all historical sessions for the current workspace.
  */
-export function findAllWorkspaceSessions() {
+export function findAllWorkspaceSessions(): WireSession[] {
   const cwd = normalizeCwd();
   const hash = computeWorkspaceHash(cwd);
   const candidates = findCandidateSessionDirs(hash);
@@ -159,13 +232,13 @@ export function findAllWorkspaceSessions() {
   return sessions;
 }
 
-function truncate(text, maxLen) {
+function truncate(text: unknown, maxLen: number): string {
   if (text === null || text === undefined) return '';
   const s = String(text);
   return s.length > maxLen ? s.slice(0, maxLen) + '...' : s;
 }
 
-function summarizeToolArgs(name, args) {
+function summarizeToolArgs(name: string, args: unknown): string {
   if (!args || typeof args !== 'object') return '';
   const priorityKeys = ['path', 'command', 'key', 'query', 'description', 'folder', 'skill', 'url'];
   const parts = [];
@@ -180,13 +253,20 @@ function summarizeToolArgs(name, args) {
   return parts.join(', ');
 }
 
-function summarizeToolResult(result) {
+function summarizeToolResult(result: unknown): string {
   if (result === null || result === undefined) return '';
-  if (result.isError || result.error) {
-    const err = result.error || result.output || result.content || 'failed';
+  const r = result as {
+    isError?: boolean;
+    error?: unknown;
+    output?: unknown;
+    content?: unknown;
+    result?: unknown;
+  };
+  if (r.isError || r.error) {
+    const err = r.error || r.output || r.content || 'failed';
     return `error: ${truncate(err, 200)}`;
   }
-  const output = result.output || result.content || result.result || '';
+  const output = r.output || r.content || r.result || '';
   const text = typeof output === 'string' ? output : JSON.stringify(output);
   return `success: ${truncate(text, 200)}`;
 }
@@ -195,7 +275,9 @@ function summarizeToolResult(result) {
  * Parse a wire.jsonl file and return conversation turns + session-level
  * compaction summaries.
  */
-export function parseWireFile(wirePath) {
+export function parseWireFile(
+  wirePath: string,
+): Promise<{ turns: WireTurn[]; compactionSummaries: CompactionSummary[] }> {
   return new Promise((resolve, reject) => {
     if (!wirePath || !fs.existsSync(wirePath)) {
       return resolve({ turns: [], compactionSummaries: [] });
@@ -206,7 +288,7 @@ export function parseWireFile(wirePath) {
     const compactionSummaries = [];
     let nextUserTurnId = 0;
 
-    function ensureTurn(turnId) {
+    function ensureTurn(turnId: string | number): WireTurn {
       const id = String(turnId);
       if (!turns.has(id)) {
         turns.set(id, {
@@ -313,7 +395,7 @@ export function parseWireFile(wirePath) {
   });
 }
 
-function toDetailedRound(turn) {
+function toDetailedRound(turn: WireTurn): DetailedRound {
   return {
     turnId: parseInt(turn.turnId, 10),
     timestamp: turn.timestamp,
@@ -327,7 +409,7 @@ function toDetailedRound(turn) {
   };
 }
 
-function toSummaryRound(turn) {
+function toSummaryRound(turn: WireTurn): SummaryRound {
   const actionNames = turn.actions.map((a) => a.name).filter(Boolean);
   const parts = [`User: ${truncate(turn.user, 120)}`];
   if (turn.agentText) {
@@ -347,7 +429,10 @@ function toSummaryRound(turn) {
  * Build the default context window: last N rounds detailed, preceding M rounds
  * summarized.
  */
-export function buildContextWindow(turns, overrides = {}) {
+export function buildContextWindow(
+  turns: WireTurn[],
+  overrides: ContextWindowOverrides = {},
+): { detailedRounds: DetailedRound[]; summaryRounds: SummaryRound[]; totalTurns: number } {
   const config = loadMcpConfig();
   const detailedCount = overrides.detailedRounds ?? config.contextWindow.detailedRounds;
   const summaryCount = overrides.summaryRounds ?? config.contextWindow.defaultSummaryRounds;
@@ -365,7 +450,11 @@ export function buildContextWindow(turns, overrides = {}) {
 /**
  * Load older rounds before a given turnId, summarized by default.
  */
-export function loadMoreRounds(turns, beforeTurnId, limit) {
+export function loadMoreRounds(
+  turns: WireTurn[],
+  beforeTurnId: number,
+  limit?: number,
+): SummaryRound[] {
   const config = loadMcpConfig();
   const chunkSize = limit ?? config.contextWindow.loadMoreChunkSize;
   const older = turns.filter((t) => parseInt(t.turnId, 10) < beforeTurnId);
@@ -373,7 +462,7 @@ export function loadMoreRounds(turns, beforeTurnId, limit) {
   return selected.map(toSummaryRound);
 }
 
-function scoreRound(turn, terms) {
+function scoreRound(turn: WireTurn, terms: string[]): number {
   const haystack = `${turn.user}\n${turn.agentText}\n${turn.actions
     .map((a) => a.name)
     .join(' ')}`.toLowerCase();
@@ -386,7 +475,7 @@ function scoreRound(turn, terms) {
   return score;
 }
 
-function extractSnippet(text, terms, maxLen = 200) {
+function extractSnippet(text: string, terms: string[], maxLen = 200): string {
   if (!terms.length) return truncate(text, maxLen);
   const lower = text.toLowerCase();
   let bestPos = -1;
@@ -410,7 +499,7 @@ function extractSnippet(text, terms, maxLen = 200) {
 /**
  * Search across all workspace session wires for rounds matching the query.
  */
-export async function searchWireContext(query, options = {}) {
+export async function searchWireContext(query: string, options: SearchOptions = {}) {
   const limit = typeof options.limit === 'number' ? Math.max(1, Math.floor(options.limit)) : 10;
   const dateFrom = options.dateFrom || null;
   const dateTo = options.dateTo || null;
@@ -457,7 +546,7 @@ export async function searchWireContext(query, options = {}) {
 /**
  * Load the full detailed content of specific conversation turns.
  */
-export async function loadTurnContext(references, options = {}) {
+export async function loadTurnContext(references: TurnReference[], options: LoadTurnOptions = {}) {
   const maxRefs =
     typeof options.maxReferences === 'number' ? Math.max(1, Math.floor(options.maxReferences)) : 20;
 

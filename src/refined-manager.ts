@@ -6,26 +6,59 @@ import fs from 'fs';
 import path from 'path';
 import { sanitizeKey } from './utils/validation.js';
 
+export interface RawAction {
+  name?: string;
+  args?: unknown;
+  result?: unknown;
+}
+
+export interface RawTurn {
+  turnId?: string | number;
+  timestamp?: string;
+  user?: string;
+  agentText?: string;
+  agent?: string;
+  actions?: RawAction[];
+}
+
+export interface RefinedTurn {
+  sessionId: string;
+  turnId: number;
+  timestamp: string | undefined;
+  summary: string;
+  facts: string[];
+  entities: {
+    files: string[];
+    tools: string[];
+    errors: string[];
+  };
+}
+
 export class RefinedManager {
-  constructor(refinedRoot) {
+  refinedRoot: string;
+
+  constructor(refinedRoot: string) {
     this.refinedRoot = refinedRoot;
   }
 
-  refinedTurnsPath(sessionId) {
+  refinedTurnsPath(sessionId: string): string {
     return path.join(this.refinedRoot, `${sanitizeKey(sessionId)}.jsonl`);
   }
 
-  refineTurn(turn, sessionId) {
-    const files = new Set();
-    const tools = new Set();
-    const errors = new Set();
+  refineTurn(turn: RawTurn, sessionId: string): RefinedTurn {
+    const files = new Set<string>();
+    const tools = new Set<string>();
+    const errors = new Set<string>();
 
     for (const action of turn.actions || []) {
       if (action.name) tools.add(action.name);
-      const args = action.args || {};
-      for (const key of ['path', 'file', 'filePath', 'cwd']) {
-        if (typeof args[key] === 'string') {
-          const value = args[key];
+      const args =
+        typeof action.args === 'object' && action.args !== null
+          ? (action.args as Record<string, unknown>)
+          : {};
+      for (const key of ['path', 'file', 'filePath', 'cwd'] as const) {
+        const value = args[key];
+        if (typeof value === 'string') {
           if (key === 'cwd' && value.includes('node_modules')) continue;
           files.add(value);
         }
@@ -46,7 +79,7 @@ export class RefinedManager {
       summary = `${userText ? `${userText} · ` : ''}${toolNames.join(', ')}`;
     }
 
-    const facts = [];
+    const facts: string[] = [];
     const agentText = turn.agentText || turn.agent || '';
     const lines = String(agentText).split(/\r?\n/);
     for (const line of lines) {
@@ -64,7 +97,7 @@ export class RefinedManager {
 
     return {
       sessionId,
-      turnId: parseInt(turn.turnId, 10),
+      turnId: parseInt(String(turn.turnId), 10),
       timestamp: turn.timestamp,
       summary,
       facts: facts.slice(0, 5),
@@ -76,7 +109,7 @@ export class RefinedManager {
     };
   }
 
-  saveRefinedTurns(sessionId, refinedTurns) {
+  saveRefinedTurns(sessionId: string, refinedTurns: RefinedTurn[]): void {
     const filePath = this.refinedTurnsPath(sessionId);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
 
@@ -94,7 +127,7 @@ export class RefinedManager {
     fs.renameSync(tmpPath, filePath);
   }
 
-  loadRefinedTurns(sessionId) {
+  loadRefinedTurns(sessionId: string): RefinedTurn[] {
     const filePath = this.refinedTurnsPath(sessionId);
     if (!fs.existsSync(filePath)) return [];
     try {

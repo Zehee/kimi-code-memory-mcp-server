@@ -4,9 +4,19 @@
 
 import fs from 'fs';
 import path from 'path';
+import type { Frontmatter, ParsedFrontmatter } from '../utils/frontmatter.js';
 import { parseFrontmatter, stringifyFrontmatter } from '../utils/frontmatter.js';
 
-function safeParseFile(filePath) {
+export interface MemoryReadResult extends Frontmatter {
+  content: string;
+  filePath: string;
+}
+
+export interface WriteOptions {
+  title?: string;
+}
+
+function safeParseFile(filePath: string): ParsedFrontmatter | null {
   try {
     const text = fs.readFileSync(filePath, 'utf8');
     return parseFrontmatter(text) || { frontmatter: {}, body: text };
@@ -16,41 +26,49 @@ function safeParseFile(filePath) {
 }
 
 export class MemoryStore {
-  constructor(storeRoot) {
+  storeRoot: string;
+
+  constructor(storeRoot: string) {
     this.storeRoot = storeRoot;
   }
 
-  resolveFilePath(folder, key) {
+  resolveFilePath(folder: string, key: string): string {
     return path.join(this.storeRoot, folder, `${key}.md`);
   }
 
-  exists(folder, key) {
+  exists(folder: string, key: string): boolean {
     return fs.existsSync(this.resolveFilePath(folder, key));
   }
 
-  read(folder, key) {
+  read(folder: string, key: string): MemoryReadResult | null {
     const filePath = this.resolveFilePath(folder, key);
     const parsed = safeParseFile(filePath);
     if (!parsed) return null;
     return {
-      ...parsed.frontmatter,
+      ...(parsed.frontmatter as Frontmatter),
       content: parsed.body,
       filePath,
-    };
+    } as MemoryReadResult;
   }
 
-  write(folder, key, content, tags = [], options = {}) {
+  write(
+    folder: string,
+    key: string,
+    content: string,
+    tags: string[] = [],
+    options: WriteOptions = {},
+  ): string {
     const filePath = this.resolveFilePath(folder, key);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
 
     const existing = this.exists(folder, key) ? safeParseFile(filePath) : null;
     const now = new Date().toISOString();
 
-    const frontmatter = {
+    const frontmatter: Frontmatter = {
       key,
-      title: options.title || existing?.frontmatter?.title || this.toTitle(key),
-      tags: tags.length > 0 ? tags : existing?.frontmatter?.tags || [],
-      createdAt: existing?.frontmatter?.createdAt || now,
+      title: options.title || String(existing?.frontmatter?.title || this.toTitle(key)),
+      tags: tags.length > 0 ? tags : (existing?.frontmatter?.tags as string[] | undefined) || [],
+      createdAt: String(existing?.frontmatter?.createdAt || now),
       updatedAt: now,
     };
 
@@ -58,14 +76,14 @@ export class MemoryStore {
     return filePath;
   }
 
-  delete(folder, key) {
+  delete(folder: string, key: string): boolean {
     const filePath = this.resolveFilePath(folder, key);
     if (!fs.existsSync(filePath)) return false;
     fs.unlinkSync(filePath);
     return true;
   }
 
-  move(oldFolder, oldKey, toFolder, newKey) {
+  move(oldFolder: string, oldKey: string, toFolder: string, newKey?: string): string {
     const oldPath = this.resolveFilePath(oldFolder, oldKey);
     const finalKey = newKey || oldKey;
     const newPath = this.resolveFilePath(toFolder, finalKey);
@@ -95,7 +113,7 @@ export class MemoryStore {
     return newPath;
   }
 
-  listMarkdownFiles(dir) {
+  listMarkdownFiles(dir: string): string[] {
     const results = [];
     if (!fs.existsSync(dir)) return results;
     const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -110,7 +128,7 @@ export class MemoryStore {
     return results;
   }
 
-  toTitle(key) {
+  toTitle(key: string): string {
     return String(key)
       .replace(/[-_]+/g, ' ')
       .replace(/([a-z])([A-Z])/g, '$1 $2')

@@ -4,6 +4,15 @@
 
 import fs from 'fs';
 import path from 'path';
+import type {
+  Ctx,
+  RememberArgs,
+  RecallArgs,
+  RecallRecentArgs,
+  SearchArgs,
+  DeleteArgs,
+  MoveArgs,
+} from '../types.js';
 import { sanitizeFolder, sanitizeKey, toTitle } from '../utils/validation.js';
 import { parseFrontmatter } from '../utils/frontmatter.js';
 
@@ -31,14 +40,14 @@ function fileStats(filePath) {
   }
 }
 
-export function createMemoryTools(ctx) {
+export function createMemoryTools(ctx: Ctx) {
   const { storeRoot, indexDao, themeManager } = ctx;
 
   function resolveFilePath(folder, key) {
     return path.join(storeRoot, folder, `${sanitizeKey(key)}.md`);
   }
 
-  function handleRemember(args) {
+  function handleRemember(args: RememberArgs) {
     const key = args.key;
     if (!key || typeof key !== 'string') {
       return toolResult({ success: false, error: 'Missing or invalid "key"' }, true);
@@ -67,8 +76,8 @@ export function createMemoryTools(ctx) {
     if (fs.existsSync(filePath)) {
       const parsed = safeParseFile(filePath);
       if (parsed && parsed.frontmatter) {
-        if (parsed.frontmatter.createdAt) createdAt = parsed.frontmatter.createdAt;
-        if (parsed.frontmatter.title) title = parsed.frontmatter.title;
+        if (parsed.frontmatter.createdAt) createdAt = String(parsed.frontmatter.createdAt);
+        if (parsed.frontmatter.title) title = String(parsed.frontmatter.title);
       }
     }
 
@@ -102,7 +111,7 @@ export function createMemoryTools(ctx) {
     return toolResult({ success: true, filePath, folder, key, themes });
   }
 
-  function handleRecall(args) {
+  function handleRecall(args: RecallArgs) {
     const key = args.key;
     if (!key || typeof key !== 'string') {
       return toolResult({ found: false, error: 'Missing or invalid "key"' }, true);
@@ -131,13 +140,13 @@ export function createMemoryTools(ctx) {
       key,
       folder,
       content: parsed.body,
-      tags: Array.isArray(parsed.frontmatter.tags) ? parsed.frontmatter.tags : [],
+      tags: Array.isArray(parsed.frontmatter.tags) ? (parsed.frontmatter.tags as string[]) : [],
       createdAt: parsed.frontmatter.createdAt || null,
       updatedAt: parsed.frontmatter.updatedAt || null,
     });
   }
 
-  function handleRecallRecent(args) {
+  function handleRecallRecent(args: RecallRecentArgs) {
     const n = typeof args.n === 'number' ? Math.max(1, Math.floor(args.n)) : 10;
     const folderFilterRaw = typeof args.folder === 'string' ? args.folder : null;
     const folderFilter = folderFilterRaw ? sanitizeFolder(folderFilterRaw) : null;
@@ -183,7 +192,7 @@ export function createMemoryTools(ctx) {
     });
   }
 
-  function handleSearch(args) {
+  function handleSearch(args: SearchArgs) {
     const query = args.query;
     if (!query || typeof query !== 'string') {
       return toolResult({ items: [], error: 'Missing or invalid "query"' }, true);
@@ -245,7 +254,7 @@ export function createMemoryTools(ctx) {
     return toolResult({ tags: Array.from(tagSet).sort() });
   }
 
-  function handleList(args) {
+  function handleList(args: RecallRecentArgs) {
     const folderFilterRaw = typeof args.folder === 'string' ? args.folder : null;
     const folderFilter = folderFilterRaw ? sanitizeFolder(folderFilterRaw) : null;
     if (folderFilterRaw && !folderFilter) {
@@ -276,7 +285,7 @@ export function createMemoryTools(ctx) {
     return toolResult({ items });
   }
 
-  function handleDelete(args) {
+  function handleDelete(args: DeleteArgs) {
     const key = args.key;
     if (!key || typeof key !== 'string') {
       return toolResult({ success: false, error: 'Missing or invalid "key"' }, true);
@@ -300,7 +309,7 @@ export function createMemoryTools(ctx) {
     return toolResult({ success: true, key, folder });
   }
 
-  function handleMove(args) {
+  function handleMove(args: MoveArgs) {
     const key = args.key;
     if (!key || typeof key !== 'string') {
       return toolResult({ success: false, error: 'Missing or invalid "key"' }, true);

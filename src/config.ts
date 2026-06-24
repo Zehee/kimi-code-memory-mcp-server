@@ -13,7 +13,7 @@ export const homedir = os.homedir();
 
 export const sessionsRoot = path.join(homedir, '.kimi-code', 'sessions');
 
-export function getStoreRoot() {
+export function getStoreRoot(): string {
   const envRoot = process.env.MEMORY_STORE_ROOT;
   if (envRoot) {
     return path.resolve(envRoot);
@@ -21,7 +21,13 @@ export function getStoreRoot() {
   return path.join(homedir, '.kimi-code-memory');
 }
 
-export const DEFAULT_CONTEXT_WINDOW = {
+export interface ContextWindow {
+  detailedRounds: number;
+  defaultSummaryRounds: number;
+  loadMoreChunkSize: number;
+}
+
+export const DEFAULT_CONTEXT_WINDOW: ContextWindow = {
   detailedRounds: 3,
   defaultSummaryRounds: 2,
   loadMoreChunkSize: 5,

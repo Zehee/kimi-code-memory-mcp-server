@@ -2,11 +2,18 @@
  * Minimal YAML frontmatter parser/stringifier for Markdown memory files.
  */
 
+export type Frontmatter = Record<string, string | string[]>;
+
+export interface ParsedFrontmatter {
+  frontmatter: Frontmatter;
+  body: string;
+}
+
 function stripQuotes(value) {
   return value.replace(/^['"]|['"]$/g, '');
 }
 
-export function parseFrontmatter(fileContent) {
+export function parseFrontmatter(fileContent): ParsedFrontmatter | null {
   const normalized = fileContent.replace(/\r\n/g, '\n');
   if (!normalized.startsWith('---\n')) return null;
   const end = normalized.indexOf('\n---', 4);
@@ -43,7 +50,7 @@ export function parseFrontmatter(fileContent) {
   return { frontmatter, body };
 }
 
-export function stringifyFrontmatter(frontmatter) {
+export function stringifyFrontmatter(frontmatter: Frontmatter): string {
   let out = '---\n';
   for (const [k, v] of Object.entries(frontmatter)) {
     if (Array.isArray(v)) {

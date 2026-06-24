@@ -18,6 +18,7 @@ import { MemoryStore } from './dao/memory-store.js';
 import { ThemeManager } from './theme-manager.js';
 import { RefinedManager } from './refined-manager.js';
 import { createTools } from './tools/index.js';
+import type { Ctx } from './types.js';
 
 const cwd = process.cwd().replace(/\\/g, '/');
 const workspaceId = computeWorkspaceId(cwd);
@@ -33,7 +34,7 @@ const memoryStore = new MemoryStore(storeRoot);
 const themeManager = new ThemeManager(path.join(storeRoot, 'themes'));
 const refinedManager = new RefinedManager(path.join(storeRoot, 'refined'));
 
-const ctx = {
+const ctx: Ctx = {
   cwd,
   workspaceId,
   storeRoot,

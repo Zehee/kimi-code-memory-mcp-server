@@ -26,3 +26,7 @@ Thumbs.db
 
 # Test artifacts
 coverage/
+
+# TypeScript build output
+dist/
+*.tsbuildinfo

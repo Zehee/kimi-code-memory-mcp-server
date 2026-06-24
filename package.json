@@ -2,13 +2,14 @@
   "name": "kimi-code-memory-mcp-server",
   "version": "0.1.0",
   "description": "Local stdio MCP server providing cross-session memory for Kimi Code CLI",
-  "main": "src/server.js",
+  "main": "dist/server.js",
+  "types": "dist/server.d.ts",
   "type": "module",
   "bin": {
-    "kimi-code-memory-mcp-server": "src/server.js"
+    "kimi-code-memory-mcp-server": "dist/server.js"
   },
   "files": [
-    "src/",
+    "dist/",
     "docs/",
     "examples/",
     "skills/",
@@ -19,11 +20,14 @@
     "CHANGELOG.md"
   ],
   "scripts": {
-    "start": "node src/server.js",
-    "test": "node tests/test.js",
-    "lint": "eslint src tests",
-    "lint:fix": "eslint src tests --fix",
-    "format": "prettier --write src tests"
+    "build": "tsc",
+    "dev": "tsx src/server.ts",
+    "start": "node dist/server.js",
+    "test": "tsx tests/test.ts",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write src tests",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "mcp",
@@ -49,9 +53,15 @@
     "@modelcontextprotocol/sdk": "^1.0.0"
   },
   "devDependencies": {
+    "@types/node": "^26.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.62.0",
+    "@typescript-eslint/parser": "^8.62.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
-    "prettier": "^3.2.5"
+    "prettier": "^3.2.5",
+    "ts-migrate": "^0.1.35",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -4,6 +4,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import type { Ctx, RefineSessionTurnsArgs, TagThemeArgs, TraceThemeArgs } from '../types.js';
 import { sanitizeFolder, sanitizeKey, toTitle } from '../utils/validation.js';
 import { parseFrontmatter } from '../utils/frontmatter.js';
 import { findAllWorkspaceSessions, parseWireFile } from '../context/wire-context.js';
@@ -24,16 +25,22 @@ function safeParseFile(filePath) {
   }
 }
 
-export function createThemeTools(ctx) {
+export function createThemeTools(ctx: Ctx) {
   const { storeRoot, themeManager, refinedManager } = ctx;
 
-  async function handleTagTheme(args) {
+  async function handleTagTheme(args: TagThemeArgs) {
     const theme = args.theme;
     if (!theme || typeof theme !== 'string') {
       return toolResult({ success: false, error: 'Missing or invalid "theme"' }, true);
     }
 
-    const ref = {};
+    const ref: {
+      sessionId?: string;
+      turnId?: number;
+      memoryKey?: string;
+      folder?: string;
+      title?: string;
+    } = {};
     if (args.sessionId && typeof args.turnId === 'number') {
       const allSessions = findAllWorkspaceSessions();
       const session = allSessions.find((s) => s.sessionId === args.sessionId);
@@ -65,7 +72,7 @@ export function createThemeTools(ctx) {
       ref.title =
         typeof args.memoryTitle === 'string'
           ? args.memoryTitle
-          : parsed?.frontmatter?.title || toTitle(sanitizedMemoryKey);
+          : String(parsed?.frontmatter?.title || toTitle(sanitizedMemoryKey));
     }
 
     if (!ref.sessionId && !ref.memoryKey) {
@@ -79,7 +86,7 @@ export function createThemeTools(ctx) {
     return toolResult({ success: true, theme: sanitizeKey(theme), ref });
   }
 
-  async function handleTraceTheme(args) {
+  async function handleTraceTheme(args: TraceThemeArgs) {
     const theme = args.theme;
     if (!theme || typeof theme !== 'string') {
       return toolResult({ found: false, error: 'Missing or invalid "theme"' }, true);
@@ -159,7 +166,7 @@ export function createThemeTools(ctx) {
     return toolResult({ themes: themeManager.listThemes() });
   }
 
-  async function handleRefineSessionTurns(args) {
+  async function handleRefineSessionTurns(args: RefineSessionTurnsArgs) {
     let session = null;
     const requestedSessionId = args.sessionId || args.session_id;
     if (requestedSessionId) {
@@ -181,7 +188,7 @@ export function createThemeTools(ctx) {
 
     let targetTurnIds = null;
     if (Array.isArray(args.turnIds) && args.turnIds.length > 0) {
-      targetTurnIds = new Set(args.turnIds.map((id) => parseInt(id, 10)));
+      targetTurnIds = new Set(args.turnIds.map((id) => parseInt(String(id), 10)));
     }
 
     let targetTurns = turns;

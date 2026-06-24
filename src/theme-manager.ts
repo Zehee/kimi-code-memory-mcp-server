@@ -6,26 +6,59 @@ import fs from 'fs';
 import path from 'path';
 import { sanitizeKey, toTitle } from './utils/validation.js';
 
+export interface ThemeTurnRef {
+  sessionId: string;
+  turnId: number;
+  timestamp: string;
+}
+
+export interface ThemeMemoryRef {
+  key: string;
+  folder: string;
+  title: string;
+  timestamp: string;
+}
+
+export interface ThemeAssociation {
+  theme: string;
+  displayName: string;
+  createdAt: string;
+  updatedAt: string;
+  turns: ThemeTurnRef[];
+  memories: ThemeMemoryRef[];
+}
+
+export interface ThemeRefInput {
+  sessionId?: string;
+  turnId?: number;
+  timestamp?: string;
+  memoryKey?: string;
+  folder?: string;
+  title?: string;
+}
+
 export class ThemeManager {
-  constructor(themesRoot) {
+  themesRoot: string;
+
+  constructor(themesRoot: string) {
     this.themesRoot = themesRoot;
   }
 
-  themeFilePath(theme) {
+  themeFilePath(theme: string): string {
     return path.join(this.themesRoot, `${sanitizeKey(theme)}.json`);
   }
 
-  loadTheme(theme) {
+  loadTheme(theme: string): ThemeAssociation | null {
     const filePath = this.themeFilePath(theme);
     if (!fs.existsSync(filePath)) return null;
     try {
-      return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      return JSON.parse(fs.readFileSync(filePath, 'utf8')) as ThemeAssociation;
     } catch {
       return null;
     }
   }
 
-  saveTheme(theme, association) {
+  saveTheme(theme: string, association: ThemeAssociation): void {
     const filePath = this.themeFilePath(theme);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     const tmpPath = filePath + '.tmp';
@@ -33,7 +66,7 @@ export class ThemeManager {
     fs.renameSync(tmpPath, filePath);
   }
 
-  listThemes() {
+  listThemes(): string[] {
     if (!fs.existsSync(this.themesRoot)) return [];
     return fs
       .readdirSync(this.themesRoot)
@@ -42,7 +75,7 @@ export class ThemeManager {
       .sort();
   }
 
-  addThemeAssociation(theme, ref) {
+  addThemeAssociation(theme: string, ref: ThemeRefInput): void {
     const safeTheme = sanitizeKey(theme);
     let association = this.loadTheme(safeTheme);
     const now = new Date().toISOString();

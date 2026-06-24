@@ -2,7 +2,7 @@
  * Input sanitization helpers.
  */
 
-export function sanitizeKey(key) {
+export function sanitizeKey(key: unknown): string {
   return (
     String(key)
       .trim()
@@ -21,7 +21,7 @@ export function sanitizeKey(key) {
  * - Leading/trailing slashes are trimmed.
  * - An empty or missing value defaults to 'memory'.
  */
-export function sanitizeFolder(folder) {
+export function sanitizeFolder(folder: unknown): string | null {
   let normalized = String(folder).replace(/\\/g, '/');
   if (normalized.startsWith('/')) return null;
   if (normalized.includes('..')) return null;
@@ -30,7 +30,7 @@ export function sanitizeFolder(folder) {
   return normalized || 'memory';
 }
 
-export function toTitle(key) {
+export function toTitle(key: unknown): string {
   return String(key)
     .replace(/[-_]+/g, ' ')
     .replace(/([a-z])([A-Z])/g, '$1 $2')
