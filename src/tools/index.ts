@@ -287,7 +287,7 @@ export function createTools(ctx: Ctx) {
     {
       name: 'tag_theme',
       description:
-        'Semantically attach a conversation turn or memory to a theme. Do not use keyword matching: analyze the turn/memory content to confirm it genuinely belongs to the theme before attaching. Creates the theme file if it does not exist.',
+        '仔细分析 turn 内容与 theme 确定相关后，将 turn 挂载到 theme。禁止仅凭关键词匹配挂载；必须确认内容 genuinely belongs to the theme 才可关联。如果 theme 不存在会自动创建。',
       inputSchema: {
         type: 'object',
         properties: {
