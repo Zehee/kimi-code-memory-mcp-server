@@ -43,3 +43,6 @@ export const DEFAULT_CONTEXT_WINDOW: ContextWindow = {
 export const DEFAULT_RECENT_CHANGE_LIMIT = 5;
 
 export const ESSENCE_SIZE_LIMIT = 15 * 1024; // 15 KB
+
+/** Default gap in seconds used by search_context to cluster adjacent turns. */
+export const DEFAULT_CLUSTER_GAP_SECONDS = 90;

@@ -168,6 +168,10 @@ export function createTools(ctx: Ctx) {
           date_from: { type: 'string', description: 'Optional start date in YYYY-MM-DD format' },
           date_to: { type: 'string', description: 'Optional end date in YYYY-MM-DD format' },
           limit: { type: 'number', description: 'Maximum number of matching rounds to return' },
+          cluster_gap_seconds: {
+            type: 'number',
+            description: `Maximum seconds between adjacent turns to be considered the same cluster. Default: ${90}.`,
+          },
         },
         required: ['query'],
       },

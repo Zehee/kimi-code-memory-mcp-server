@@ -23,6 +23,7 @@ import {
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { DEFAULT_CLUSTER_GAP_SECONDS } from '../config.js';
 
 function toolResult(data: unknown, isError = false) {
   return {
@@ -34,8 +35,6 @@ function toolResult(data: unknown, isError = false) {
 export function createContextTools(ctx: Ctx) {
   const { cwd, workspaceId, storeRoot, refinedManager } = ctx;
 
-  const CLUSTER_GAP_MS = 90 * 1000;
-
   interface Cluster {
     sessionId: string;
     hitTurnId: number;
@@ -46,7 +45,20 @@ export function createContextTools(ctx: Ctx) {
     return turn.timestamp ? new Date(turn.timestamp).getTime() : null;
   }
 
-  function expandCluster(sessionId: string, sessionTurns: WireTurn[], hitTurnId: number): Cluster {
+  function resolveClusterGapSeconds(args: SearchContextArgs): number {
+    if (typeof args.cluster_gap_seconds === 'number' && args.cluster_gap_seconds > 0) {
+      return args.cluster_gap_seconds;
+    }
+    return DEFAULT_CLUSTER_GAP_SECONDS;
+  }
+
+  function expandCluster(
+    sessionId: string,
+    sessionTurns: WireTurn[],
+    hitTurnId: number,
+    gapSeconds: number,
+  ): Cluster {
+    const gapMs = gapSeconds * 1000;
     const sorted = [...sessionTurns].sort(
       (a, b) => parseInt(a.turnId, 10) - parseInt(b.turnId, 10),
     );
@@ -64,7 +76,7 @@ export function createContextTools(ctx: Ctx) {
       const curr = sorted[idx];
       const prevTime = getTurnTime(prev);
       const currTime = getTurnTime(curr);
-      if (prevTime && currTime && currTime - prevTime <= CLUSTER_GAP_MS) {
+      if (prevTime && currTime && currTime - prevTime <= gapMs) {
         memberIds.add(parseInt(prev.turnId, 10));
         idx--;
       } else {
@@ -79,7 +91,7 @@ export function createContextTools(ctx: Ctx) {
       const next = sorted[idx + 1];
       const currTime = getTurnTime(curr);
       const nextTime = getTurnTime(next);
-      if (currTime && nextTime && nextTime - currTime <= CLUSTER_GAP_MS) {
+      if (currTime && nextTime && nextTime - currTime <= gapMs) {
         memberIds.add(parseInt(next.turnId, 10));
         idx++;
       } else {
@@ -166,6 +178,7 @@ export function createContextTools(ctx: Ctx) {
       return toolResult({ query, matches: [], clusters: [], refinedCount: 0 });
     }
 
+    const clusterGapSeconds = resolveClusterGapSeconds(args);
     const { matches, hits } = await searchWireContext(query, {
       limit: args.limit,
       dateFrom: args.date_from,
@@ -197,7 +210,7 @@ export function createContextTools(ctx: Ctx) {
 
       for (const hit of sessionHits) {
         const hitTurnId = parseInt(hit.turnId, 10);
-        const cluster = expandCluster(sessionId, turns, hitTurnId);
+        const cluster = expandCluster(sessionId, turns, hitTurnId, clusterGapSeconds);
         clusters.push(cluster);
 
         const toRefine = cluster.members
@@ -227,6 +240,7 @@ export function createContextTools(ctx: Ctx) {
       query,
       totalMatches: matches.length,
       matches,
+      clusterGapSeconds,
       clusters: clusters.map((c) => ({
         sessionId: c.sessionId,
         hitTurnId: c.hitTurnId,
