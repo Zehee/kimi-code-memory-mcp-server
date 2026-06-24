@@ -1,0 +1,15 @@
+{
+  "theme": "cache-design",
+  "displayName": "Cache Design",
+  "createdAt": "2026-06-20T10:20:00.000Z",
+  "updatedAt": "2026-06-20T10:20:00.000Z",
+  "turns": [],
+  "memories": [
+    {
+      "key": "choose-sqlite-cache",
+      "folder": "memory/decisions",
+      "title": "Choose SQLite for Cache Layer",
+      "timestamp": "2026-06-20T10:00:00.000Z"
+    }
+  ]
+}

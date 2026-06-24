@@ -1,0 +1,36 @@
+{
+  "version": "3-kv",
+  "meta": {
+    "lastSyncAt": "2026-06-20T10:20:00.000Z",
+    "structureHash": "00000000000000000000000000000000"
+  },
+  "index": {
+    "memory/": { "comment": "Memory index" },
+    "memory/decisions/": { "comment": "Architecture and product decisions" },
+    "memory/decisions/choose-sqlite-cache.md": {
+      "title": "Choose SQLite for Cache Layer",
+      "tags": ["decision", "database", "cache"]
+    },
+    "memory/knowledge/": { "comment": "Project knowledge" },
+    "memory/knowledge/project-tech-stack.md": {
+      "title": "Project Tech Stack",
+      "tags": ["knowledge", "stack", "architecture"]
+    },
+    "memory/rules/": { "comment": "Conventions and guardrails" },
+    "memory/rules/no-plaintext-secrets.md": {
+      "title": "No Plaintext Secrets in Memory",
+      "tags": ["rule", "security", "workflow"]
+    },
+    "memory/reference/": { "comment": "External references" },
+    "memory/reference/mcp-spec.md": {
+      "title": "MCP Specification Reference",
+      "tags": ["reference", "mcp", "external"]
+    },
+    "essence/": { "comment": "Workspace essence" },
+    "essence/essence.md": {
+      "title": "Workspace Essence",
+      "tags": ["essence", "workspace-memory"]
+    },
+    "themes/": { "comment": "Theme associations" }
+  }
+}

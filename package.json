@@ -1,0 +1,57 @@
+{
+  "name": "kimi-code-memory-mcp-server",
+  "version": "0.1.0",
+  "description": "Local stdio MCP server providing cross-session memory for Kimi Code CLI",
+  "main": "src/server.js",
+  "type": "module",
+  "bin": {
+    "kimi-code-memory-mcp-server": "src/server.js"
+  },
+  "files": [
+    "src/",
+    "docs/",
+    "examples/",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node tests/test.js",
+    "lint": "eslint src tests",
+    "lint:fix": "eslint src tests --fix",
+    "format": "prettier --write src tests"
+  },
+  "keywords": [
+    "mcp",
+    "memory",
+    "kimi",
+    "kimi-code",
+    "cli",
+    "agent-memory",
+    "cross-session",
+    "markdown"
+  ],
+  "author": "Zehee <zehee@vip.qq.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zehee/kimi-code-memory-mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Zehee/kimi-code-memory-mcp-server/issues"
+  },
+  "homepage": "https://github.com/Zehee/kimi-code-memory-mcp-server#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.2.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
