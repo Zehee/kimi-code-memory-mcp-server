@@ -69,35 +69,27 @@ npx kimi-code-memory-mcp-server
 
 重启 Kimi Code CLI 以加载该服务器。
 
-## 可选：安装记忆 Skill
-
-本仓库包含一个配套 Skill（`skills/memory-manage/SKILL.md`），用于教导 Kimi Code CLI 何时以及如何使用记忆工具（remember、search、主题追溯等）。
-
-安装方式：
-
-```bash
-# 克隆或定位到本包，然后将 skill 复制到 Kimi Code skills 目录
-cp -r skills/memory-manage ~/.kimi-code/skills/memory-manage
-```
-
-重启 Kimi Code CLI。该 Skill 会自动加载，并引导 Agent：
-
-- 每次会话开始时引导工作区上下文
-- 将决策/知识/规则写入正确的 folder
-- 做改动前搜索记忆
-- 跨会话追溯主题
-
 ## 可选：安装用户级 AGENTS.md 启动钩子
 
-如需每次会话启动时自动恢复记忆，将本仓库自带的 `AGENTS.md` 复制到 Kimi Code 用户目录：
+如需每次会话启动时自动恢复记忆并应用行为规范，将本仓库自带的 `AGENTS.md` 复制到 Kimi Code 用户目录：
 
 ```bash
 cp AGENTS.md ~/.kimi-code/AGENTS.md
 ```
 
-这会安装一个启动钩子，让 Kimi Code CLI 在每次会话开始时调用 `bootstrap_workspace`，并遵循记忆分类和决策守卫规则。
+这会安装一个启动钩子，让 Kimi Code CLI 在每次会话开始时调用 `bootstrap_workspace`，并遵循记忆分类和决策守卫规则。由于 `AGENTS.md` 会注入到**每个**会话中，它是放置记忆相关行为协议的正确位置。
 
 > **注意：** `AGENTS.md` 规则会注入到每个会话中，请只保留与记忆相关的约定，不要包含属于其他 MCP server 的工具偏好。
+
+## 可选：安装记忆 Skill
+
+本仓库还包含一个轻量 Skill（`skills/memory-manage/SKILL.md`），用于在用户表达记忆相关意图时提醒 Kimi Code CLI 调用记忆工具。
+
+```bash
+cp -r skills/memory-manage ~/.kimi-code/skills/memory-manage
+```
+
+该 Skill 本身**不强制**行为，它只是一个调度器。真正的协议（何时 remember、决策守卫等）应配置在 `AGENTS.md` 中。
 
 ## 快速开始
 

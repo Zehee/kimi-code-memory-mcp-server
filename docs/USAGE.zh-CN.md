@@ -238,13 +238,13 @@
 
 ## 配套 Skill
 
-如需自动、按协议驱动地使用这些工具，可安装 `skills/memory-manage/SKILL.md` 中的配套 Skill：
+如需一个轻量调度器，在用户表达记忆相关意图时提醒 Agent 调用记忆工具，可安装 `skills/memory-manage/SKILL.md` 中的 Skill：
 
 ```bash
 cp -r skills/memory-manage ~/.kimi-code/skills/memory-manage
 ```
 
-该 Skill 规定了何时写入记忆、何时搜索、如何追溯主题，无需手动提示 Agent。
+该 Skill 是调度器，不是行为强制器。如需持久化的行为规则（启动协议、决策守卫、主题追溯协议），应安装 `AGENTS.md`。
 
 ## 记忆内容格式
 

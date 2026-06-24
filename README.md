@@ -69,35 +69,27 @@ Edit `~/.kimi-code/mcp.json`:
 
 Restart Kimi Code CLI to load the server.
 
-## Optional: Install the Memory Skill
-
-This repository includes a companion Skill (`skills/memory-manage/SKILL.md`) that teaches Kimi Code CLI when and how to use the memory tools (remember, search, theme tracing, etc.).
-
-To install it:
-
-```bash
-# Clone or locate this package, then copy the skill to your Kimi Code skills directory
-cp -r skills/memory-manage ~/.kimi-code/skills/memory-manage
-```
-
-Restart Kimi Code CLI. The Skill will be loaded automatically and will guide the agent to:
-
-- Bootstrap workspace context at the start of each session
-- Write decisions/knowledge/rules to the right folders
-- Search memory before making changes
-- Trace themes across sessions
-
 ## Optional: Install User-Level AGENTS.md Startup Hook
 
-For automatic memory recovery on every session start, copy the bundled `AGENTS.md` to your Kimi Code user directory:
+For automatic memory recovery and behavioral rules on every session start, copy the bundled `AGENTS.md` to your Kimi Code user directory:
 
 ```bash
 cp AGENTS.md ~/.kimi-code/AGENTS.md
 ```
 
-This installs a startup hook that tells Kimi Code CLI to call `bootstrap_workspace` at the beginning of every session, and to follow the memory classification and decision-guard rules.
+This installs a startup hook that tells Kimi Code CLI to call `bootstrap_workspace` at the beginning of every session, and to follow the memory classification and decision-guard rules. Because `AGENTS.md` is injected into **every** session, it is the right place for memory-related behavior protocols.
 
-> **Note:** `AGENTS.md` rules are injected into every session. Keep them focused on memory-related conventions only. Do not include tool preferences that belong to other MCP servers.
+> **Note:** Keep `AGENTS.md` focused on memory-related conventions only. Do not include tool preferences that belong to other MCP servers.
+
+## Optional: Install the Memory Skill
+
+This repository also includes a lightweight Skill (`skills/memory-manage/SKILL.md`) that reminds Kimi Code CLI to call the memory tools when the user expresses a memory-related intent.
+
+```bash
+cp -r skills/memory-manage ~/.kimi-code/skills/memory-manage
+```
+
+The Skill does **not** enforce behavior on its own; it is a dispatcher. The actual protocols (when to remember, decision guard, etc.) live in `AGENTS.md`.
 
 ## Quick Start
 

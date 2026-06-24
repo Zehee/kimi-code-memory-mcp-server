@@ -238,13 +238,13 @@ If you edit Markdown files outside the MCP tools, rebuild the index:
 
 ## Companion Skill
 
-For automatic, protocol-driven use of these tools, install the companion Skill from `skills/memory-manage/SKILL.md`:
+For a lightweight dispatcher that reminds the agent to call memory tools when the user expresses a memory-related intent, install the Skill from `skills/memory-manage/SKILL.md`:
 
 ```bash
 cp -r skills/memory-manage ~/.kimi-code/skills/memory-manage
 ```
 
-The Skill encodes when to remember, when to search, and how to trace themes, so you do not have to prompt the agent manually.
+The Skill is a dispatcher, not a behavior enforcer. For persistent behavioral rules (startup protocol, decision guard, theme tracing protocol), install `AGENTS.md` instead.
 
 ## Memory Content Format
 
