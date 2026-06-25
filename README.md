@@ -284,6 +284,7 @@ src/
 ## Related Documents
 
 - [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — system design and data flow
+- [`docs/three-layer-memory-model.md`](./docs/three-layer-memory-model.md) — the theoretical memory model behind this server
 - [`docs/search-logic.md`](./docs/search-logic.md) — how `search` and `search_context` work
 - [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md) — how to contribute
 
