@@ -6,13 +6,15 @@
   "types": "dist/server.d.ts",
   "type": "module",
   "bin": {
-    "kimi-code-memory-mcp-server": "dist/server.js"
+    "kimi-code-memory-mcp-server": "dist/server.js",
+    "kimi-memory-setup": "dist/setup-cli.js"
   },
   "files": [
     "dist/",
     "docs/",
     "examples/",
     "skills/",
+    "assets/",
     "AGENTS.md",
     "README.md",
     "README.zh-CN.md",

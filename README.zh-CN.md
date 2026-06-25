@@ -57,9 +57,36 @@ npm install
 npm run build
 ```
 
-## 配置 Kimi Code CLI
+## 快速配置（推荐）
 
-编辑 `~/.kimi-code/mcp.json` 并添加服务器。
+从 npm 安装后，运行 setup 命令自动配置 Kimi Code CLI：
+
+```bash
+npx kimi-memory-setup
+```
+
+它会完成：
+
+1. 检测 `~/.kimi-code` 目录。
+2. 在 `~/.kimi-code/AGENTS.md` 顶部注入记忆协议规则。
+3. 将 `memory-manage` Skill 安装到 `~/.kimi-code/skills/memory-manage`。
+4. 在 `~/.kimi-code/mcp.json` 中添加 `kimi-memory` MCP 服务器配置。
+
+预览变更而不写入文件：
+
+```bash
+npx kimi-memory-setup --dry-run
+```
+
+后续如需移除注入的配置：
+
+```bash
+npx kimi-memory-setup --undo
+```
+
+## 配置 Kimi Code CLI（手动）
+
+如果你希望手动配置，编辑 `~/.kimi-code/mcp.json` 并添加服务器。
 
 如果你用 `npm install -g` 安装，使用全局 `node_modules` 中 `dist/server.js` 的绝对路径：
 

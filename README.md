@@ -57,9 +57,36 @@ npm install
 npm run build
 ```
 
-## Configure Kimi Code CLI
+## Quick Setup (recommended)
 
-Edit `~/.kimi-code/mcp.json` and add the server.
+After installing from npm, run the setup command to configure Kimi Code CLI automatically:
+
+```bash
+npx kimi-memory-setup
+```
+
+This will:
+
+1. Detect your `~/.kimi-code` directory.
+2. Inject memory protocol rules at the top of `~/.kimi-code/AGENTS.md`.
+3. Install the `memory-manage` skill to `~/.kimi-code/skills/memory-manage`.
+4. Add the `kimi-memory` MCP server entry to `~/.kimi-code/mcp.json`.
+
+Preview changes without writing anything:
+
+```bash
+npx kimi-memory-setup --dry-run
+```
+
+Remove the injected configuration later:
+
+```bash
+npx kimi-memory-setup --undo
+```
+
+## Configure Kimi Code CLI (manual)
+
+If you prefer to configure manually, edit `~/.kimi-code/mcp.json` and add the server.
 
 If you installed from npm with `-g`, use the absolute path to `dist/server.js` inside your global `node_modules`:
 

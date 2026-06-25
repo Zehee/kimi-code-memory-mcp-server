@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import assert from 'assert';
 import { RefinedManager } from '../src/refined-manager.js';
 import { computeWorkspaceHash } from '../src/utils/paths.js';
+import { runSetup } from '../src/setup.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -644,6 +645,61 @@ async function testLoadMoreContextInvalid() {
   });
 }
 
+async function testSetupIntegration() {
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-code-home-test-'));
+  try {
+    // Dry run should not create anything.
+    const dryRunResult = await runSetup({ kimiCodeHome: tmpHome, dryRun: true });
+    assert(!fs.existsSync(path.join(tmpHome, 'AGENTS.md')));
+    assert(!fs.existsSync(path.join(tmpHome, 'mcp.json')));
+    assert(dryRunResult.actions.every((a) => typeof a === 'string'));
+
+    // Run setup for real.
+    const setupResult = await runSetup({ kimiCodeHome: tmpHome });
+    assert(setupResult.actions.some((a) => a.includes('Injected')));
+
+    const agentsMdPath = path.join(tmpHome, 'AGENTS.md');
+    const mcpJsonPath = path.join(tmpHome, 'mcp.json');
+    const skillPath = path.join(tmpHome, 'skills', 'memory-manage');
+
+    assert(fs.existsSync(agentsMdPath));
+    assert(fs.existsSync(mcpJsonPath));
+    assert(fs.existsSync(skillPath));
+
+    const agentsContent = fs.readFileSync(agentsMdPath, 'utf8');
+    assert(agentsContent.includes('<!-- KIMI-MEMORY-INJECTED-START -->'));
+    assert(agentsContent.includes('<!-- KIMI-MEMORY-INJECTED-END -->'));
+    assert(agentsContent.includes('mcp__kimi-memory__bootstrap_workspace'));
+
+    const mcpConfig = JSON.parse(fs.readFileSync(mcpJsonPath, 'utf8'));
+    assert(mcpConfig.mcpServers['kimi-memory']);
+    assert.deepStrictEqual(mcpConfig.mcpServers['kimi-memory'].args, ['-y', 'kimi-code-memory-mcp-server']);
+
+    // Re-running should update, not duplicate.
+    const updateResult = await runSetup({ kimiCodeHome: tmpHome });
+    assert(updateResult.actions.some((a) => a.includes('Updated')));
+    const updatedAgents = fs.readFileSync(agentsMdPath, 'utf8');
+    const startCount = (updatedAgents.match(/KIMI-MEMORY-INJECTED-START/g) || []).length;
+    assert.strictEqual(startCount, 1, 'injected block should appear exactly once');
+
+    // Undo removes everything.
+    const undoResult = await runSetup({ kimiCodeHome: tmpHome, undo: true });
+    assert(undoResult.actions.some((a) => a.includes('Removed')));
+    const undoneAgents = fs.readFileSync(agentsMdPath, 'utf8');
+    assert(!undoneAgents.includes('KIMI-MEMORY-INJECTED-START'));
+
+    const undoneMcp = JSON.parse(fs.readFileSync(mcpJsonPath, 'utf8'));
+    assert(!undoneMcp.mcpServers['kimi-memory']);
+    assert(!fs.existsSync(skillPath));
+  } finally {
+    try {
+      fs.rmSync(tmpHome, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    } catch {
+      // Windows may briefly lock files.
+    }
+  }
+}
+
 const tests = [
   testGetCurrentWorkspace,
   testRememberAndRecall,
@@ -666,6 +722,7 @@ const tests = [
   testListSearchViews,
   testLoadWorkspaceContext,
   testLoadMoreContextInvalid,
+  testSetupIntegration,
 ];
 
 async function main() {
