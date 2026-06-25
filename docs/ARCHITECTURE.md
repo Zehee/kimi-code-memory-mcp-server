@@ -26,14 +26,14 @@ This document explains how Kimi Code Memory MCP Server is structured, how data f
 
 ```text
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Kimi Code CLI  │────▶│  wire.jsonl      │────▶│ wire-context.js │
+│  Kimi Code CLI  │────▶│  wire.jsonl      │────▶│ wire-context.ts │
 │  (conversation) │     │  (event stream)  │     │ (parser)        │
 └─────────────────┘     └──────────────────┘     └────────┬────────┘
                                                           │
                                                           ▼
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
 │  Agent tools    │◀────│  MCP server      │◀────│  context-tools  │
-│  remember/      │     │  src/server.js   │     │                 │
+│  remember/      │     │  src/server.ts   │     │                 │
 │  search/        │     │                  │     │                 │
 │  trace_theme/   │     │                  │     │                 │
 └─────────────────┘     └────────┬─────────┘     └─────────────────┘
@@ -51,8 +51,8 @@ This document explains how Kimi Code Memory MCP Server is structured, how data f
    ┌───────────────┐    ┌───────────────┐    ┌───────────────┐
    │ memory-store  │    │ theme-manager │    │ refined-      │
    │ (.md I/O)     │    │ (themes/*.json)│   │ manager       │
-   └───────┬───────┘    └───────────────┘    │ (refined/*.  │
-           │                                  │  jsonl)      │
+   └───────┬───────┘    └───────────────┘    │ (refined/     │
+           │                                  │  refined.sqlite)│
            ▼                                  └───────────────┘
    ┌───────────────┐
    │ IndexDao      │
@@ -64,21 +64,21 @@ This document explains how Kimi Code Memory MCP Server is structured, how data f
 
 | File | Responsibility |
 |------|----------------|
-| `src/server.js` | MCP server entry, registers tools, starts stdio transport. |
-| `src/config.js` | Default paths, environment variable handling (`MEMORY_STORE_ROOT`). |
-| `src/tools/index.js` | Tool schemas, validation, and dispatch. |
-| `src/tools/memory-tools.js` | `remember`, `recall`, `recall_recent`, `search`, `list`, `list_tags`, `delete`, `move`. |
-| `src/tools/context-tools.js` | `load_workspace_context`, `load_more_context`, `search_context`, `load_turn_context`. |
-| `src/tools/theme-tools.js` | `tag_theme`, `trace_theme`, `list_themes`, `refine_session_turns`. |
-| `src/tools/system-tools.js` | `organize_memories`, `sync_workspace_index`, `bootstrap_workspace`, `get_current_workspace`. |
-| `src/dao/index.js` | `index.json` v3-kv DAO with structure-hash consistency check. |
-| `src/dao/memory-store.js` | Markdown file read/write and frontmatter handling. |
-| `src/context/wire-context.js` | Parses Kimi Code CLI `wire.jsonl` into conversation rounds. |
-| `src/theme-manager.js` | Reads/writes `themes/<theme>.json`. |
-| `src/refined-manager.js` | Reads/writes `refined/<sessionId>.jsonl`. |
-| `src/utils/frontmatter.js` | YAML frontmatter parser and serializer. |
-| `src/utils/paths.js` | Path helpers and storage root resolution. |
-| `src/utils/validation.js` | Input sanitization (`sanitizeKey`, `sanitizeFolder`). |
+| `src/server.ts` | MCP server entry, registers tools, starts stdio transport. |
+| `src/config.ts` | Default paths, environment variable handling (`MEMORY_STORE_ROOT`, `MEMORY_SESSIONS_ROOT`, `KIMI_CODE_HOME`). |
+| `src/tools/index.ts` | Tool schemas, validation, and dispatch. |
+| `src/tools/memory-tools.ts` | `remember`, `recall`, `recall_recent`, `search`, `list`, `list_tags`, `delete`, `move`. |
+| `src/tools/context-tools.ts` | `load_workspace_context`, `load_more_context`, `search_context`, `load_turn_context`. |
+| `src/tools/theme-tools.ts` | `tag_theme`, `trace_theme`, `list_themes`, `refine_session_turns`. |
+| `src/tools/system-tools.ts` | `organize_memories`, `sync_workspace_index`, `bootstrap_workspace`, `get_current_workspace`. |
+| `src/dao/index.ts` | `index.json` v3-kv DAO with structure-hash consistency check. |
+| `src/dao/memory-store.ts` | Markdown file read/write and frontmatter handling. |
+| `src/context/wire-context.ts` | Parses Kimi Code CLI `wire.jsonl` into conversation rounds. |
+| `src/theme-manager.ts` | Reads/writes `themes/<theme>.json`. |
+| `src/refined-manager.ts` | Stores refined turn summaries in `refined/refined.sqlite`. |
+| `src/utils/frontmatter.ts` | YAML frontmatter parser and serializer. |
+| `src/utils/paths.ts` | Path helpers and storage root resolution. |
+| `src/utils/validation.ts` | Input sanitization (`sanitizeKey`, `sanitizeFolder`). |
 
 ## `index.json` v3-kv
 

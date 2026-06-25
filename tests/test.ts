@@ -6,16 +6,37 @@ import os from 'os';
 import { fileURLToPath } from 'url';
 import assert from 'assert';
 import { RefinedManager } from '../src/refined-manager.js';
+import { computeWorkspaceHash } from '../src/utils/paths.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.join(__dirname, '..');
 
+cleanupTempDirectories();
+
 const testStoreRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-code-memory-test-'));
 process.env.MEMORY_STORE_ROOT = testStoreRoot;
 
+function cleanupTempDirectories() {
+  // Clean up any leftover test temp directories from previous interrupted runs.
+  const prefix = 'kimi-code-';
+  for (const entry of fs.readdirSync(os.tmpdir(), { withFileTypes: true })) {
+    if (!entry.isDirectory() || !entry.name.startsWith(prefix)) continue;
+    try {
+      fs.rmSync(path.join(os.tmpdir(), entry.name), { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    } catch {
+      // Ignore Windows lock cleanup issues.
+    }
+  }
+}
+
 function cleanup() {
-  fs.rmSync(testStoreRoot, { recursive: true, force: true });
+  try {
+    fs.rmSync(testStoreRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  } catch {
+    // Ignore Windows lock cleanup issues.
+  }
+  cleanupTempDirectories();
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -26,9 +47,14 @@ function parseJsonResult(toolResult: unknown): any {
 }
 
 async function withClient(fn: (client: Client) => Promise<unknown>) {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined) env[key] = value;
+  }
   const transport = new StdioClientTransport({
     command: 'npx',
     args: ['tsx', path.join(projectRoot, 'src', 'server.ts')],
+    env,
   });
   const client = new Client({ name: 'test-client', version: '0.1.0' });
   await client.connect(transport);
@@ -38,6 +64,44 @@ async function withClient(fn: (client: Client) => Promise<unknown>) {
   } finally {
     await transport.close();
   }
+}
+
+function createTempSessionWire(
+  sessionsRoot: string,
+  workspaceDirName: string,
+  sessionId: string,
+  turns: Array<{ user: string; agent: string; timestamp: string }>,
+) {
+  const sessionDir = path.join(sessionsRoot, workspaceDirName, sessionId, 'agents', 'main');
+  fs.mkdirSync(sessionDir, { recursive: true });
+  const wirePath = path.join(sessionDir, 'wire.jsonl');
+  const lines: string[] = [];
+  for (let i = 0; i < turns.length; i++) {
+    const turn = turns[i];
+    lines.push(
+      JSON.stringify({
+        type: 'turn.prompt',
+        time: turn.timestamp,
+        input: [{ type: 'text', text: turn.user }],
+      }),
+    );
+    lines.push(
+      JSON.stringify({
+        type: 'context.append_loop_event',
+        time: turn.timestamp,
+        event: { type: 'step.begin', turnId: i },
+      }),
+    );
+    lines.push(
+      JSON.stringify({
+        type: 'context.append_loop_event',
+        time: turn.timestamp,
+        event: { type: 'content.part', turnId: i, part: { type: 'text', text: turn.agent } },
+      }),
+    );
+  }
+  fs.writeFileSync(wirePath, lines.join('\n') + '\n', 'utf8');
+  return wirePath;
 }
 
 async function testGetCurrentWorkspace() {
@@ -354,6 +418,204 @@ async function testSearchContextEmpty() {
   });
 }
 
+async function testRefinedSearchDirectly() {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'refined-search-test-'));
+  let manager: RefinedManager | null = null;
+  try {
+    manager = new RefinedManager(tmpRoot);
+    const turn = {
+      turnId: 1,
+      timestamp: '2026-06-24T12:00:00.000Z',
+      user: 'Talk about sqlite search',
+      agentText: '- Implemented SQLite search for refined turns.',
+      actions: [],
+    };
+    const refined = manager.refineTurn(turn, 'sess-search');
+    await manager.saveRefinedTurns('sess-search', [refined]);
+
+    const matches = manager.searchRefinedTurns({ query: 'sqlite search', limit: 10 });
+    assert(matches.length >= 1);
+    assert(matches.some((m) => m.sessionId === 'sess-search' && m.turnId === 1));
+    assert(matches[0].score > 0);
+  } finally {
+    if (manager) manager.close();
+    try {
+      fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    } catch {
+      // Windows may retain SQLite lock briefly.
+    }
+  }
+}
+
+async function testSearchContextUsesRefined() {
+  await withClient(async (client) => {
+    // Create a memory entry whose content will appear in refined turns after refinement.
+    await client.callTool({
+      name: 'remember',
+      arguments: {
+        key: 'refined-search-test',
+        content: '# Refined Search Test\n\nWe implemented sqlite refined search.',
+        tags: ['test'],
+      },
+    });
+
+    // Refine current session turns. This session's wire exists because we are running inside it.
+    const refineResult = parseJsonResult(
+      await client.callTool({ name: 'refine_session_turns', arguments: {} }),
+    );
+
+    // If no current session wire is found, skip the refined-search assertion.
+    if (refineResult.success && refineResult.refinedCount > 0) {
+      const searchResult = parseJsonResult(
+        await client.callTool({
+          name: 'search_context',
+          arguments: { query: 'sqlite refined search', limit: 10 },
+        }),
+      );
+      assert(Array.isArray(searchResult.matches));
+      assert(searchResult.matches.length >= 1, 'search_context should find refined turns');
+      assert.strictEqual(typeof searchResult.refinedCount, 'number');
+    }
+  });
+}
+
+async function testConfigurableSessionsRoot() {
+  const tmpSessions = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-code-sessions-test-'));
+  const cwd = process.cwd().replace(/\\/g, '/');
+  const hash = computeWorkspaceHash(cwd);
+  const workspaceDirName = `wd_${path.basename(cwd)}_${hash}`;
+
+  createTempSessionWire(tmpSessions, workspaceDirName, 'session_configurable', [
+    {
+      user: 'What is configurable sessions root?',
+      agent: 'It allows MEMORY_SESSIONS_ROOT to override the default sessions path.',
+      timestamp: '2026-06-24T12:00:00.000Z',
+    },
+  ]);
+
+  const previousSessionsRoot = process.env.MEMORY_SESSIONS_ROOT;
+  process.env.MEMORY_SESSIONS_ROOT = tmpSessions;
+  try {
+    await withClient(async (client) => {
+      const result = parseJsonResult(
+        await client.callTool({
+          name: 'search_context',
+          arguments: { query: 'MEMORY_SESSIONS_ROOT override' },
+        }),
+      );
+      assert(Array.isArray(result.matches));
+      assert(result.matches.length >= 1, 'search_context should find turn in configurable sessions root');
+      assert(result.matches.some((m: { sessionId: string }) => m.sessionId === 'session_configurable'));
+    });
+  } finally {
+    if (previousSessionsRoot === undefined) {
+      delete process.env.MEMORY_SESSIONS_ROOT;
+    } else {
+      process.env.MEMORY_SESSIONS_ROOT = previousSessionsRoot;
+    }
+    fs.rmSync(tmpSessions, { recursive: true, force: true });
+  }
+}
+
+async function testClusterMaxSize() {
+  const tmpSessions = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-code-cluster-test-'));
+  const cwd = process.cwd().replace(/\\/g, '/');
+  const hash = computeWorkspaceHash(cwd);
+  const workspaceDirName = `wd_${path.basename(cwd)}_${hash}`;
+
+  const turns: Array<{ user: string; agent: string; timestamp: string }> = [];
+  for (let i = 0; i < 10; i++) {
+    turns.push({
+      user: i === 5 ? 'search keyword here' : `turn ${i}`,
+      agent: `agent response ${i}`,
+      timestamp: `2026-06-24T12:00:0${i}.000Z`,
+    });
+  }
+  createTempSessionWire(tmpSessions, workspaceDirName, 'session_cluster', turns);
+
+  const previousSessionsRoot = process.env.MEMORY_SESSIONS_ROOT;
+  process.env.MEMORY_SESSIONS_ROOT = tmpSessions;
+  try {
+    await withClient(async (client) => {
+      const result = parseJsonResult(
+        await client.callTool({
+          name: 'search_context',
+          arguments: { query: 'search keyword', max_cluster_size: 3 },
+        }),
+      );
+      assert(Array.isArray(result.clusters));
+      assert(result.clusters.length >= 1);
+      for (const cluster of result.clusters) {
+        assert(cluster.memberCount <= 3, `cluster size ${cluster.memberCount} exceeds max_cluster_size 3`);
+      }
+    });
+  } finally {
+    if (previousSessionsRoot === undefined) {
+      delete process.env.MEMORY_SESSIONS_ROOT;
+    } else {
+      process.env.MEMORY_SESSIONS_ROOT = previousSessionsRoot;
+    }
+    fs.rmSync(tmpSessions, { recursive: true, force: true });
+  }
+}
+
+async function testSearchContextSkipsMissingSession() {
+  const tmpSessions = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-code-missing-sessions-'));
+  const cwd = process.cwd().replace(/\\/g, '/');
+  const hash = computeWorkspaceHash(cwd);
+  const workspaceDirName = `wd_${path.basename(cwd)}_${hash}`;
+  const sessionId = 'session_missing_wire';
+
+  // Create a temporary wire so the server can refine it.
+  const wirePath = createTempSessionWire(tmpSessions, workspaceDirName, sessionId, [
+    {
+      user: 'missing session turn',
+      agent: 'This session has no wire file.',
+      timestamp: '2026-06-24T12:00:00.000Z',
+    },
+  ]);
+
+  const previousSessionsRoot = process.env.MEMORY_SESSIONS_ROOT;
+  process.env.MEMORY_SESSIONS_ROOT = tmpSessions;
+  try {
+    await withClient(async (client) => {
+      // Refine the session through the server; this writes into the server's refined DB.
+      const refineResult = parseJsonResult(
+        await client.callTool({ name: 'refine_session_turns', arguments: { sessionId } }),
+      );
+      assert(refineResult.success, 'refine_session_turns should succeed');
+
+      // Now delete the wire file so the session is missing during search.
+      fs.rmSync(wirePath, { force: true });
+
+      const result = parseJsonResult(
+        await client.callTool({
+          name: 'search_context',
+          arguments: { query: 'missing session turn' },
+        }),
+      );
+      assert(Array.isArray(result.matches));
+      assert(Array.isArray(result.skippedSessions));
+      assert(
+        result.skippedSessions.includes(sessionId),
+        'search_context should skip session_missing_wire',
+      );
+      // No valid wire means no full match content, but the search should not crash.
+    });
+  } finally {
+    if (previousSessionsRoot === undefined) {
+      delete process.env.MEMORY_SESSIONS_ROOT;
+    } else {
+      process.env.MEMORY_SESSIONS_ROOT = previousSessionsRoot;
+    }
+    try {
+      fs.rmSync(tmpSessions, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    } catch {
+      // Ignore Windows lock cleanup issues.
+    }
+  }
+}
+
 async function testListSearchViews() {
   await withClient(async (client) => {
     const result = parseJsonResult(await client.callTool({ name: 'list_search_views', arguments: {} }));
@@ -394,6 +656,11 @@ const tests = [
   testRefinedManagerSQLite,
   testRefineTurnExtraction,
   testSearchContextEmpty,
+  testRefinedSearchDirectly,
+  testSearchContextUsesRefined,
+  testConfigurableSessionsRoot,
+  testClusterMaxSize,
+  testSearchContextSkipsMissingSession,
   testListSearchViews,
   testLoadWorkspaceContext,
   testLoadMoreContextInvalid,

@@ -20,7 +20,8 @@
     "CHANGELOG.md"
   ],
   "scripts": {
-    "build": "tsc",
+    "sync-version": "node scripts/sync-version.mjs",
+    "build": "npm run sync-version && tsc",
     "dev": "tsx src/server.ts",
     "start": "node dist/server.js",
     "test": "tsx tests/test.ts",
@@ -35,7 +36,7 @@
     "kimi",
     "kimi-code",
     "cli",
-    "agent-memory",
+    "kimi-memory",
     "cross-session",
     "markdown"
   ],

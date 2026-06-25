@@ -30,3 +30,6 @@ coverage/
 # TypeScript build output
 dist/
 *.tsbuildinfo
+
+# Workspace agent-memory data (per-workspace, not project source)
+memory/

@@ -45,6 +45,23 @@ export interface RefinedTurn {
   categories: Record<string, string[]>;
 }
 
+export interface RefinedSearchOptions {
+  query: string;
+  dateFrom?: string;
+  dateTo?: string;
+  limit?: number;
+}
+
+export interface RefinedSearchMatch {
+  sessionId: string;
+  turnId: number;
+  timestamp: string | undefined;
+  summary: string;
+  facts: string[];
+  notes: string[];
+  score: number;
+}
+
 /** Action / conclusion keywords in both English and Chinese. */
 const ACTION_KEYWORDS = [
   // English - past tense / conclusions
@@ -399,6 +416,83 @@ export class RefinedManager {
         }
       | undefined;
     return row ? this.rowToTurn(row) : undefined;
+  }
+
+  searchRefinedTurns(options: RefinedSearchOptions): RefinedSearchMatch[] {
+    const rawQuery = typeof options.query === 'string' ? options.query.trim() : '';
+    if (!rawQuery) return [];
+
+    const terms = rawQuery
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((t) => t.length > 0);
+    if (terms.length === 0) return [];
+
+    const limit = typeof options.limit === 'number' ? Math.max(1, Math.floor(options.limit)) : 100;
+    const dateFrom = options.dateFrom || null;
+    const dateTo = options.dateTo || null;
+
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+
+    for (const term of terms) {
+      const escaped = term.split('%').join('\\%').split('_').join('\\_');
+      const like = `%${escaped}%`;
+      conditions.push("(summary LIKE ? ESCAPE '\\' OR facts LIKE ? ESCAPE '\\' OR notes LIKE ? ESCAPE '\\')");
+      params.push(like, like, like);
+    }
+
+    if (dateFrom) {
+      conditions.push('timestamp >= ?');
+      params.push(`${dateFrom}T00:00:00.000Z`);
+    }
+    if (dateTo) {
+      conditions.push('timestamp <= ?');
+      params.push(`${dateTo}T23:59:59.999Z`);
+    }
+
+    const sql = `SELECT session_id, turn_id, timestamp, summary, facts, notes
+                 FROM refined_turns
+                 WHERE ${conditions.join(' AND ')}
+                 ORDER BY timestamp DESC
+                 LIMIT ?`;
+    params.push(limit * 4);
+
+    const stmt = this.db.prepare(sql);
+    const rows = stmt.all(...params) as Array<{
+      session_id: string;
+      turn_id: number;
+      timestamp: string | null;
+      summary: string;
+      facts: string;
+      notes: string;
+    }>;
+
+    const matches: RefinedSearchMatch[] = [];
+    for (const row of rows) {
+      const haystack = `${row.summary}\n${row.facts}\n${row.notes}`.toLowerCase();
+      let score = 0;
+      for (const term of terms) {
+        const pattern = term.replace(/[.*+?^${}()|[\]\\]/g, (ch) => `\\${ch}`);
+        const re = new RegExp(pattern, 'gi');
+        const m = haystack.match(re);
+        if (m) score += m.length;
+      }
+      if (score === 0) continue;
+
+      matches.push({
+        sessionId: row.session_id,
+        turnId: row.turn_id,
+        timestamp: row.timestamp ?? undefined,
+        summary: row.summary,
+        facts: JSON.parse(row.facts || '[]'),
+        notes: JSON.parse(row.notes || '[]'),
+        score,
+      });
+    }
+
+    matches.sort((a, b) => b.score - a.score);
+    return matches.slice(0, limit);
   }
 
   close(): void {

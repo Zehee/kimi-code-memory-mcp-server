@@ -7,7 +7,7 @@ import path from 'path';
 import type { Ctx, OrganizeArgs, SyncWorkspaceIndexArgs } from '../types.js';
 import { ESSENCE_SIZE_LIMIT } from '../config.js';
 import { loadMcpConfig } from '../context/wire-context.js';
-import { parseFrontmatter } from '../utils/frontmatter.js';
+import { parseFrontmatter, stringifyFrontmatter } from '../utils/frontmatter.js';
 import { atomicWriteFile } from '../utils/paths.js';
 import { toTitle } from '../utils/validation.js';
 
@@ -140,18 +140,7 @@ export function createSystemTools(ctx: Ctx) {
       updatedAt: nowIso,
     };
 
-    const fileContent =
-      '---\n' +
-      Object.entries(frontmatter)
-        .map(([k, v]) => {
-          if (Array.isArray(v)) {
-            return `${k}:\n${v.map((item) => `  - ${item}`).join('\n')}`;
-          }
-          return `${k}: '${String(v).replace(/'/g, "''")}'`;
-        })
-        .join('\n') +
-      '\n---\n\n' +
-      content;
+    const fileContent = stringifyFrontmatter(frontmatter) + content;
 
     atomicWriteFile(essencePath, fileContent, 'utf8');
     await indexDao.upsertEntry(essencePath);

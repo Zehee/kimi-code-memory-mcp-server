@@ -11,11 +11,12 @@ import readline from 'readline';
 import type { ContextWindow } from '../config.js';
 import {
   getStoreRoot,
-  sessionsRoot,
+  getSessionsRoot,
   DEFAULT_CONTEXT_WINDOW,
   DEFAULT_RECENT_CHANGE_LIMIT,
 } from '../config.js';
 import { computeWorkspaceHash } from '../utils/paths.js';
+import type { RefinedManager } from '../refined-manager.js';
 
 export interface McpConfig {
   version: number;
@@ -64,6 +65,7 @@ export interface SearchOptions {
   limit?: number;
   dateFrom?: string;
   dateTo?: string;
+  refinedManager?: RefinedManager;
 }
 
 export interface SearchMatch {
@@ -82,6 +84,7 @@ export interface SearchResult {
   totalMatches: number;
   matches: SearchMatch[];
   hits: Array<{ sessionId: string; turn: WireTurn }>;
+  skippedSessionIds?: string[];
 }
 
 export interface LoadTurnOptions {
@@ -107,14 +110,16 @@ export interface SummaryRound {
   summary: string;
 }
 
-const mcpConfigPath = path.join(getStoreRoot(), 'mcp-config.json');
+function getMcpConfigPath(): string {
+  return path.join(getStoreRoot(), 'mcp-config.json');
+}
 
 /**
  * Load the global MCP configuration, creating defaults if absent.
  */
 export function loadMcpConfig(): McpConfig {
   try {
-    const text = fs.readFileSync(mcpConfigPath, 'utf8');
+    const text = fs.readFileSync(getMcpConfigPath(), 'utf8');
     const parsed = JSON.parse(text);
     return {
       version: parsed.version || 1,
@@ -139,6 +144,7 @@ export function loadMcpConfig(): McpConfig {
  * Persist the global MCP configuration.
  */
 export function saveMcpConfig(config: McpConfig): void {
+  const mcpConfigPath = getMcpConfigPath();
   fs.mkdirSync(path.dirname(mcpConfigPath), { recursive: true });
   fs.writeFileSync(mcpConfigPath, JSON.stringify(config, null, 2), 'utf8');
 }
@@ -151,6 +157,7 @@ function normalizeCwd(): string {
  * Find all session directory candidates for a workspace hash.
  */
 function findCandidateSessionDirs(hash: string): string[] {
+  const sessionsRoot = getSessionsRoot();
   if (!fs.existsSync(sessionsRoot)) return [];
   return fs
     .readdirSync(sessionsRoot, { withFileTypes: true })
@@ -162,7 +169,7 @@ function findCandidateSessionDirs(hash: string): string[] {
  * Within a single wd_* directory, find the most recently active session.
  */
 function findLatestSessionInDir(slugDir: string): WireSession | null {
-  const dir = path.join(sessionsRoot, slugDir);
+  const dir = path.join(getSessionsRoot(), slugDir);
   if (!fs.existsSync(dir)) return null;
   const sessions = fs
     .readdirSync(dir, { withFileTypes: true })
@@ -237,7 +244,7 @@ export function findAllWorkspaceSessions(): WireSession[] {
   const candidates = findCandidateSessionDirs(hash);
   const sessions = [];
   for (const slugDir of candidates) {
-    const dir = path.join(sessionsRoot, slugDir);
+    const dir = path.join(getSessionsRoot(), slugDir);
     if (!fs.existsSync(dir)) continue;
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
@@ -517,22 +524,97 @@ function extractSnippet(text: string, terms: string[], maxLen = 200): string {
 
 /**
  * Search across all workspace session wires for rounds matching the query.
+ *
+ * If a RefinedManager is provided, we first query the refined SQLite index for
+ * candidate turns and only parse the wires needed to return full content. This
+ * avoids parsing every historical wire on every search. When refined data is
+ * unavailable we fall back to the original full-scan behavior.
  */
 export async function searchWireContext(query: string, options: SearchOptions = {}) {
   const limit = typeof options.limit === 'number' ? Math.max(1, Math.floor(options.limit)) : 10;
   const dateFrom = options.dateFrom || null;
   const dateTo = options.dateTo || null;
+  const refinedManager = options.refinedManager;
   const terms = query
     .toLowerCase()
     .split(/\s+/)
     .filter((t) => t.length > 0);
 
-  const sessions = findAllWorkspaceSessions();
+  if (terms.length === 0) {
+    return { query, totalMatches: 0, matches: [] as SearchMatch[], hits: [] as Array<{ sessionId: string; turn: WireTurn }> };
+  }
+
   const matches: SearchMatch[] = [];
   const hits: Array<{ sessionId: string; turn: WireTurn }> = [];
+  const skippedSessionIds: string[] = [];
+  const parsedSessionCache = new Map<string, WireTurn[]>();
 
+  async function getSessionTurns(sessionId: string): Promise<WireTurn[] | null> {
+    if (parsedSessionCache.has(sessionId)) {
+      return parsedSessionCache.get(sessionId)!;
+    }
+    const sessions = findAllWorkspaceSessions();
+    const session = sessions.find((s) => s.sessionId === sessionId);
+    if (!session) return null;
+    const { turns } = await parseWireFile(session.wire);
+    parsedSessionCache.set(sessionId, turns);
+    return turns;
+  }
+
+  if (refinedManager) {
+    const refinedMatches = refinedManager.searchRefinedTurns({
+      query,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      limit,
+    });
+
+    for (const refined of refinedMatches) {
+      const turns = await getSessionTurns(refined.sessionId);
+      if (!turns) {
+        if (!skippedSessionIds.includes(refined.sessionId)) {
+          skippedSessionIds.push(refined.sessionId);
+        }
+        continue;
+      }
+      const turn = turns.find((t) => parseInt(t.turnId, 10) === refined.turnId);
+      if (!turn) continue;
+
+      const roundDate = turn.timestamp ? turn.timestamp.slice(0, 10) : null;
+      if (dateFrom && roundDate && roundDate < dateFrom) continue;
+      if (dateTo && roundDate && roundDate > dateTo) continue;
+
+      const fullText = `${turn.user}\n${turn.agentText}`;
+      matches.push({
+        sessionId: refined.sessionId,
+        turnId: refined.turnId,
+        timestamp: turn.timestamp || null,
+        score: refined.score,
+        user: truncate(turn.user, 1000),
+        agent: truncate(turn.agentText, 2000),
+        snippet: extractSnippet(fullText, terms, 240),
+        actions: turn.actions.map((a) => a.name).filter(Boolean),
+      });
+      hits.push({ sessionId: refined.sessionId, turn });
+    }
+
+    if (matches.length > 0 || skippedSessionIds.length > 0) {
+      matches.sort((a, b) => b.score - a.score);
+      return {
+        query,
+        totalMatches: matches.length,
+        matches: matches.slice(0, limit),
+        hits,
+        skippedSessionIds,
+      };
+    }
+  }
+
+  // Fallback: full scan of all workspace session wires.
+  const sessions = findAllWorkspaceSessions();
   for (const session of sessions) {
     const { turns } = await parseWireFile(session.wire);
+    parsedSessionCache.set(session.sessionId, turns);
     for (const turn of turns) {
       const roundDate = turn.timestamp ? turn.timestamp.slice(0, 10) : null;
       if (dateFrom && roundDate && roundDate < dateFrom) continue;
@@ -562,6 +644,7 @@ export async function searchWireContext(query: string, options: SearchOptions = 
     totalMatches: matches.length,
     matches: matches.slice(0, limit),
     hits,
+    skippedSessionIds,
   };
 }
 

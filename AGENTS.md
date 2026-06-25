@@ -1,6 +1,6 @@
 ## 强制启动协议
 
-每次会话开始后、回答用户第一个问题或执行任何可能改变项目状态的操作之前，**必须调用** `mcp__agent-memory__bootstrap_workspace()`。
+每次会话开始后、回答用户第一个问题或执行任何可能改变项目状态的操作之前，**必须调用** `mcp__kimi-memory__bootstrap_workspace()`。
 
 必须读取并内化：
 1. `essence.md` —— 当前工作区什么最重要
@@ -102,10 +102,43 @@
 
 ---
 
+## MCP Server 版本号规则
+
+项目存在两个版本号，必须区分并保持一致：
+
+| 版本号 | 位置 | 用途 |
+|--------|------|------|
+| 仓库版本 | `package.json#version` | 发布包、Git tag、CHANGELOG 的版本 |
+| 运行实例版本 | `src/version.ts` → `src/server.ts` | MCP 协议握手时报告的版本 |
+
+- 采用 SemVer 2.0.0（`MAJOR.MINOR.PATCH`）。
+- 单一事实来源：`package.json#version`。
+- 运行实例版本通过 `npm run sync-version` 从 `package.json` 同步到 `src/version.ts`。
+- `npm run build` 会自动执行同步。
+- 禁止手动修改 `src/version.ts`；改版本只改 `package.json`。
+
+### 升级触发条件
+
+| 位 | 触发条件 |
+|----|----------|
+| MAJOR | 不兼容的协议/存储格式/工具签名变更 |
+| MINOR | 新增工具或能力、非破坏性增强 |
+| PATCH | Bug 修复、性能优化、文档/测试更新 |
+
+### 代码变更后验证顺序
+
+1. 仓库内：`npm run typecheck && npm run lint && npm test`
+2. **运行实例实测**：当仓库测试受本地环境干扰（例如仓库本身积累了大量历史 sessions、数据状态复杂，导致难以在干净条件下验证）时，将新代码同步到实际 MCP 运行实例（如 Kimi Code CLI 调用的 server），用真实工作区验证行为。
+3. 严禁仅以仓库测试通过为由跳过必要的运行实例实测，尤其是涉及环境变量、路径解析、缓存/模块状态的变更。
+
+---
+
 ## 禁止行为
 
 - 禁止用 `folder="notes"` 保存项目相关记忆
 - 禁止写入空 tags
 - 禁止只口头答应而不调用工具
 - 禁止手动修改 `~/.kimi-code/sessions/` 下的 `wire.jsonl`
+- 禁止手动修改 `src/version.ts`（应通过 `package.json` + `npm run sync-version` 同步）
+- **当用户输入以 `？` / `?` 结尾时，禁止执行任何写入/修改/构建/运行等改变项目状态的操作**：只能回答问题和进行讨论，必须等待用户明确说出「确定」「可以」「开始吧」等指令后才能行动
 

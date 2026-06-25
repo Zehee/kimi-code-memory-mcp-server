@@ -11,8 +11,6 @@ import path from 'path';
 
 export const homedir = os.homedir();
 
-export const sessionsRoot = path.join(homedir, '.kimi-code', 'sessions');
-
 export function getStoreRoot(): string {
   const envRoot = process.env.MEMORY_STORE_ROOT;
   if (envRoot) {
@@ -26,6 +24,28 @@ export function getStoreRoot(): string {
     return resolved;
   }
   return path.join(homedir, '.kimi-code-memory');
+}
+
+/**
+ * Resolve the directory where Kimi Code CLI session wires are stored.
+ *
+ * Priority:
+ * 1. MEMORY_SESSIONS_ROOT environment variable (absolute path)
+ * 2. KIMI_CODE_HOME environment variable (<KIMI_CODE_HOME>/sessions)
+ * 3. Default ~/.kimi-code/sessions
+ */
+export function getSessionsRoot(): string {
+  if (process.env.MEMORY_SESSIONS_ROOT) {
+    const resolved = path.resolve(process.env.MEMORY_SESSIONS_ROOT);
+    if (!path.isAbsolute(resolved)) {
+      throw new Error(`MEMORY_SESSIONS_ROOT must resolve to an absolute path: ${process.env.MEMORY_SESSIONS_ROOT}`);
+    }
+    return resolved;
+  }
+  if (process.env.KIMI_CODE_HOME) {
+    return path.join(path.resolve(process.env.KIMI_CODE_HOME), 'sessions');
+  }
+  return path.join(homedir, '.kimi-code', 'sessions');
 }
 
 export interface ContextWindow {

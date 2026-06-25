@@ -1,6 +1,6 @@
 ---
 name: memory-manage
-description: 提示 agent 在用户表达记忆相关意图时调用 agent-memory MCP 工具
+description: 提示 agent 在用户表达记忆相关意图时调用 kimi-memory MCP 工具
 type: prompt
 whenToUse: >
   当用户表达以下任一意图时：
@@ -18,26 +18,26 @@ whenToUse: >
 
 # 记忆工具调度提示
 
-本 Skill 是轻量提醒。当用户意图匹配上述任一情况时，调用对应的 `mcp__agent-memory__*` 工具。
+本 Skill 是轻量提醒。当用户意图匹配上述任一情况时，调用对应的 `mcp__kimi-memory__*` 工具。
 
 ## 快速映射
 
 | 用户意图 | 工具 |
 |----------|------|
-| "记住…" / "保存…" | `mcp__agent-memory__remember` |
-| "读取…" / "看看…" | `mcp__agent-memory__recall` |
-| "搜索记忆…" | `mcp__agent-memory__search` |
-| "列出记忆/标签" | `mcp__agent-memory__list` / `mcp__agent-memory__list_tags` |
-| "移动/归档…" | `mcp__agent-memory__move` |
-| "删除…" | `mcp__agent-memory__delete` |
-| "整理记忆" | `mcp__agent-memory__organize_memories` |
-| "同步索引" | `mcp__agent-memory__sync_workspace_index` |
-| "搜索历史对话" | `mcp__agent-memory__search_context` |
-| "加载第 N 轮" | `mcp__agent-memory__load_turn_context` |
-| "查看搜索视图" | `mcp__agent-memory__list_search_views` |
-| "关联到主题" | `mcp__agent-memory__tag_theme` |
-| "追溯主题" | `mcp__agent-memory__trace_theme` |
-| "列出主题" | `mcp__agent-memory__list_themes` |
-| "手动精炼轮次" | `mcp__agent-memory__refine_session_turns` |
+| "记住…" / "保存…" | `mcp__kimi-memory__remember` |
+| "读取…" / "看看…" | `mcp__kimi-memory__recall` |
+| "搜索记忆…" | `mcp__kimi-memory__search` |
+| "列出记忆/标签" | `mcp__kimi-memory__list` / `mcp__kimi-memory__list_tags` |
+| "移动/归档…" | `mcp__kimi-memory__move` |
+| "删除…" | `mcp__kimi-memory__delete` |
+| "整理记忆" | `mcp__kimi-memory__organize_memories` |
+| "同步索引" | `mcp__kimi-memory__sync_workspace_index` |
+| "搜索历史对话" | `mcp__kimi-memory__search_context` |
+| "加载第 N 轮" | `mcp__kimi-memory__load_turn_context` |
+| "查看搜索视图" | `mcp__kimi-memory__list_search_views` |
+| "关联到主题" | `mcp__kimi-memory__tag_theme` |
+| "追溯主题" | `mcp__kimi-memory__trace_theme` |
+| "列出主题" | `mcp__kimi-memory__list_themes` |
+| "手动精炼轮次" | `mcp__kimi-memory__refine_session_turns` |
 
 行为规范（何时 remember、决策守卫、主题追溯协议）见 `AGENTS.md`。

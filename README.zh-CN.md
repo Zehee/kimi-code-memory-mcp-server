@@ -3,10 +3,11 @@
 [English](./README.md)
 
 [![CI](https://github.com/Zehee/kimi-code-memory-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/Zehee/kimi-code-memory-mcp-server/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/kimi-code-memory-mcp-server)](https://www.npmjs.com/package/kimi-code-memory-mcp-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 一个为 [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code) 提供跨会话记忆的本地 stdio MCP 服务器。
+
+> **注意：** 本包尚未发布到 npm，请按下面的说明从源码安装运行。
 
 所有数据都以普通 Markdown 文件存储在磁盘上。无需向量数据库、图数据库或外部服务。
 
@@ -41,31 +42,32 @@ Markdown + YAML frontmatter 带来：
 
 ## 安装
 
-```bash
-npm install -g kimi-code-memory-mcp-server
-```
-
-或直接用 npx 运行：
+目前本包需要从源码安装。需要 Node.js ≥ 18。
 
 ```bash
-npx kimi-code-memory-mcp-server
+git clone https://github.com/Zehee/kimi-code-memory-mcp-server.git
+cd kimi-code-memory-mcp-server
+npm install
+npm run build
 ```
 
 ## 配置 Kimi Code CLI
 
-编辑 `~/.kimi-code/mcp.json`：
+编辑 `~/.kimi-code/mcp.json`，指向构建后的服务器入口：
 
 ```json
 {
   "mcpServers": {
-    "memory": {
-      "command": "npx",
-      "args": ["kimi-code-memory-mcp-server"],
+    "kimi-memory": {
+      "command": "node",
+      "args": ["/absolute/path/to/kimi-code-memory-mcp-server/dist/server.js"],
       "enabled": true
     }
   }
 }
 ```
+
+服务器名称 **`kimi-memory`** 很重要，因为本仓库自带的 `AGENTS.md` 规则以 `mcp__kimi-memory__*` 形式调用工具（例如 `mcp__kimi-memory__bootstrap_workspace`）。
 
 重启 Kimi Code CLI 以加载该服务器。
 
@@ -80,6 +82,8 @@ cp AGENTS.md ~/.kimi-code/AGENTS.md
 这会安装一个启动钩子，让 Kimi Code CLI 在每次会话开始时调用 `bootstrap_workspace`，并遵循记忆分类和决策守卫规则。由于 `AGENTS.md` 会注入到**每个**会话中，它是放置记忆相关行为协议的正确位置。
 
 > **注意：** `AGENTS.md` 规则会注入到每个会话中，请只保留与记忆相关的约定，不要包含属于其他 MCP server 的工具偏好。
+>
+> **前提条件：** 必须在 `~/.kimi-code/mcp.json` 中将 MCP 服务器注册为 `kimi-memory`，否则 `AGENTS.md` 中的 `mcp__kimi-memory__*` 调用会失败。
 
 ## 可选：安装记忆 Skill
 
@@ -128,10 +132,18 @@ Agent：[调用 tag_theme] theme=cache-design
 ├── themes/
 │   └── my-theme.json       # theme -> turn/memory 引用
 └── refined/
-    └── <sessionId>.jsonl   # 轮次级摘要
+    └── refined.sqlite      # 轮次级摘要
 ```
 
 可通过 `MEMORY_STORE_ROOT` 环境变量覆盖存储根目录。
+
+### 环境变量
+
+| 变量 | 用途 |
+|------|------|
+| `MEMORY_STORE_ROOT` | 覆盖默认存储根目录 `~/.kimi-code-memory`。 |
+| `MEMORY_SESSIONS_ROOT` | 覆盖默认的 `~/.kimi-code/sessions` 路径，用于发现 `wire.jsonl` 文件。 |
+| `KIMI_CODE_HOME` | `MEMORY_SESSIONS_ROOT` 的替代方案；会话从 `<KIMI_CODE_HOME>/sessions` 读取。 |
 
 ## 工具列表
 
@@ -173,25 +185,25 @@ npm run lint
 
 ```text
 src/
-├── server.js              # MCP 服务器入口
-├── config.js              # 默认值与路径
-├── theme-manager.js       # 主题存储
-├── refined-manager.js     # 精炼轮次存储
+├── server.ts              # MCP 服务器入口
+├── config.ts              # 默认值与路径
+├── theme-manager.ts       # 主题存储
+├── refined-manager.ts     # 精炼轮次存储
 ├── dao/
-│   ├── index.js           # index.json DAO（v3-kv）
-│   └── memory-store.js    # Markdown 文件操作
+│   ├── index.ts           # index.json DAO（v3-kv）
+│   └── memory-store.ts    # Markdown 文件操作
 ├── context/
-│   └── wire-context.js    # wire.jsonl 解析
+│   └── wire-context.ts    # wire.jsonl 解析
 ├── tools/
-│   ├── index.js           # 工具 schema 与分发
-│   ├── memory-tools.js    # 记忆增删改查
-│   ├── context-tools.js   # 上下文恢复
-│   ├── theme-tools.js     # 主题追溯
-│   └── system-tools.js    # 整理/同步/引导
+│   ├── index.ts           # 工具 schema 与分发
+│   ├── memory-tools.ts    # 记忆增删改查
+│   ├── context-tools.ts   # 上下文恢复
+│   ├── theme-tools.ts     # 主题追溯
+│   └── system-tools.ts    # 整理/同步/引导
 └── utils/
-    ├── frontmatter.js
-    ├── paths.js
-    └── validation.js
+    ├── frontmatter.ts
+    ├── paths.ts
+    └── validation.ts
 ```
 
 ## 路线图

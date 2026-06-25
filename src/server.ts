@@ -19,6 +19,7 @@ import { ThemeManager } from './theme-manager.js';
 import { RefinedManager } from './refined-manager.js';
 import { createTools } from './tools/index.js';
 import type { Ctx } from './types.js';
+import { VERSION } from './version.js';
 
 const cwd = process.cwd().replace(/\\/g, '/');
 const workspaceId = computeWorkspaceId(cwd);
@@ -47,7 +48,7 @@ const ctx: Ctx = {
 const tools = createTools(ctx);
 
 const server = new Server(
-  { name: 'kimi-code-memory', version: '0.1.0' },
+  { name: 'kimi-code-memory', version: VERSION },
   { capabilities: { tools: {} } },
 );
 

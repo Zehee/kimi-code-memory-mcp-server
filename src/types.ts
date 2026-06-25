@@ -69,6 +69,7 @@ export interface SearchContextArgs {
   date_to?: string;
   limit?: number;
   cluster_gap_seconds?: number;
+  max_cluster_size?: number;
 }
 
 export interface ListSearchViewsArgs {

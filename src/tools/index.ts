@@ -173,6 +173,11 @@ export function createTools(ctx: Ctx) {
             description:
               '相邻 turn 被归为同一「簇」的最大时间间隔（秒）。一个簇代表一段连续的讨论或决策。默认 90 秒；协作节奏慢可适当调大，话题切换快则调小。',
           },
+          max_cluster_size: {
+            type: 'number',
+            description:
+              '单个 cluster 最多包含的 turn 数，防止连续讨论过长时上下文爆炸。默认 15。',
+          },
         },
         required: ['query'],
       },

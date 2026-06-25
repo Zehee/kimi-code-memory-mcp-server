@@ -3,10 +3,11 @@
 [中文](./README.zh-CN.md)
 
 [![CI](https://github.com/Zehee/kimi-code-memory-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/Zehee/kimi-code-memory-mcp-server/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/kimi-code-memory-mcp-server)](https://www.npmjs.com/package/kimi-code-memory-mcp-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 A local stdio MCP server that gives [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code) cross-session memory.
+
+> **Note:** This package is not yet published to npm. Install and run it from source (see below).
 
 All data is stored as plain Markdown files on disk. No vector database, no graph database, no external services.
 
@@ -41,31 +42,32 @@ See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the design rationale.
 
 ## Install
 
-```bash
-npm install -g kimi-code-memory-mcp-server
-```
-
-Or run directly with npx:
+Currently the package must be installed from source. Node.js ≥ 18 is required.
 
 ```bash
-npx kimi-code-memory-mcp-server
+git clone https://github.com/Zehee/kimi-code-memory-mcp-server.git
+cd kimi-code-memory-mcp-server
+npm install
+npm run build
 ```
 
 ## Configure Kimi Code CLI
 
-Edit `~/.kimi-code/mcp.json`:
+Edit `~/.kimi-code/mcp.json` and point to the built server entry:
 
 ```json
 {
   "mcpServers": {
-    "memory": {
-      "command": "npx",
-      "args": ["kimi-code-memory-mcp-server"],
+    "kimi-memory": {
+      "command": "node",
+      "args": ["/absolute/path/to/kimi-code-memory-mcp-server/dist/server.js"],
       "enabled": true
     }
   }
 }
 ```
+
+The server name **`kimi-memory`** is important because the bundled `AGENTS.md` rules call tools as `mcp__kimi-memory__*` (for example `mcp__kimi-memory__bootstrap_workspace`).
 
 Restart Kimi Code CLI to load the server.
 
@@ -80,6 +82,8 @@ cp AGENTS.md ~/.kimi-code/AGENTS.md
 This installs a startup hook that tells Kimi Code CLI to call `bootstrap_workspace` at the beginning of every session, and to follow the memory classification and decision-guard rules. Because `AGENTS.md` is injected into **every** session, it is the right place for memory-related behavior protocols.
 
 > **Note:** Keep `AGENTS.md` focused on memory-related conventions only. Do not include tool preferences that belong to other MCP servers.
+>
+> **Prerequisite:** The MCP server must be registered under the name `kimi-memory` in `~/.kimi-code/mcp.json`, otherwise the `mcp__kimi-memory__*` calls in `AGENTS.md` will fail.
 
 ## Optional: Install the Memory Skill
 
@@ -128,10 +132,18 @@ The server stores data under `~/.kimi-code-memory/<workspace-id>/`:
 ├── themes/
 │   └── my-theme.json       # theme -> turn/memory refs
 └── refined/
-    └── <sessionId>.jsonl   # turn-level summaries
+    └── refined.sqlite      # turn-level summaries
 ```
 
 You can override the storage root with the `MEMORY_STORE_ROOT` environment variable.
+
+### Environment Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `MEMORY_STORE_ROOT` | Override the default `~/.kimi-code-memory` storage root. |
+| `MEMORY_SESSIONS_ROOT` | Override the default `~/.kimi-code/sessions` path used to discover `wire.jsonl` files. |
+| `KIMI_CODE_HOME` | Alternative to `MEMORY_SESSIONS_ROOT`; sessions are read from `<KIMI_CODE_HOME>/sessions`. |
 
 ## Tools
 
@@ -173,25 +185,25 @@ See [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md) for contribution guidelines
 
 ```text
 src/
-├── server.js              # MCP server entry
-├── config.js              # defaults and paths
-├── theme-manager.js       # theme storage
-├── refined-manager.js     # refined turn storage
+├── server.ts              # MCP server entry
+├── config.ts              # defaults and paths
+├── theme-manager.ts       # theme storage
+├── refined-manager.ts     # refined turn storage
 ├── dao/
-│   ├── index.js           # index.json DAO (v3-kv)
-│   └── memory-store.js    # Markdown file operations
+│   ├── index.ts           # index.json DAO (v3-kv)
+│   └── memory-store.ts    # Markdown file operations
 ├── context/
-│   └── wire-context.js    # wire.jsonl parsing
+│   └── wire-context.ts    # wire.jsonl parsing
 ├── tools/
-│   ├── index.js           # tool schemas & dispatch
-│   ├── memory-tools.js    # memory CRUD
-│   ├── context-tools.js   # context recovery
-│   ├── theme-tools.js     # theme tracing
-│   └── system-tools.js    # organize/sync/bootstrap
+│   ├── index.ts           # tool schemas & dispatch
+│   ├── memory-tools.ts    # memory CRUD
+│   ├── context-tools.ts   # context recovery
+│   ├── theme-tools.ts     # theme tracing
+│   └── system-tools.ts    # organize/sync/bootstrap
 └── utils/
-    ├── frontmatter.js
-    ├── paths.js
-    └── validation.js
+    ├── frontmatter.ts
+    ├── paths.ts
+    └── validation.ts
 ```
 
 ## Roadmap

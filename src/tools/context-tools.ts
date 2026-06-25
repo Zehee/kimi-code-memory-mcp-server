@@ -52,32 +52,66 @@ export function createContextTools(ctx: Ctx) {
     return DEFAULT_CLUSTER_GAP_SECONDS;
   }
 
+  function groupHitsIntoBlocks(hits: WireTurn[]): WireTurn[][] {
+    const sorted = [...hits].sort(
+      (a, b) => parseInt(a.turnId, 10) - parseInt(b.turnId, 10),
+    );
+    const blocks: WireTurn[][] = [];
+    let current: WireTurn[] = [];
+    for (const hit of sorted) {
+      const turnId = parseInt(hit.turnId, 10);
+      if (
+        current.length === 0 ||
+        turnId === parseInt(current[current.length - 1].turnId, 10) + 1
+      ) {
+        current.push(hit);
+      } else {
+        blocks.push(current);
+        current = [hit];
+      }
+    }
+    if (current.length > 0) blocks.push(current);
+    return blocks;
+  }
+
   function expandCluster(
     sessionId: string,
     sessionTurns: WireTurn[],
-    hitTurnId: number,
+    blockHitIds: number[],
     gapSeconds: number,
+    occupied: Set<number>,
+    maxClusterSize: number,
   ): Cluster {
     const gapMs = gapSeconds * 1000;
     const sorted = [...sessionTurns].sort(
       (a, b) => parseInt(a.turnId, 10) - parseInt(b.turnId, 10),
     );
     const indexMap = new Map(sorted.map((t, i) => [parseInt(t.turnId, 10), i]));
-    const hitIndex = indexMap.get(hitTurnId);
-    if (hitIndex === undefined) return { sessionId, hitTurnId, members: [] };
 
-    const memberIds = new Set<number>();
-    memberIds.add(hitTurnId);
+    const memberIds = new Set<number>(blockHitIds);
+    const minHitId = Math.min(...blockHitIds);
+    const maxHitId = Math.max(...blockHitIds);
+    const minIndex = indexMap.get(minHitId);
+    const maxIndex = indexMap.get(maxHitId);
+    if (minIndex === undefined || maxIndex === undefined) {
+      return { sessionId, hitTurnId: minHitId, members: [] };
+    }
+
+    // Expand backward from the leftmost hit, then forward from the rightmost hit.
+    // Both multi-hit and single-hit blocks use the same time-window logic.
+    // Expansion stops when the cluster would exceed maxClusterSize.
 
     // Expand backward.
-    let idx = hitIndex;
-    while (idx > 0) {
+    let idx = minIndex;
+    while (idx > 0 && memberIds.size < maxClusterSize) {
       const prev = sorted[idx - 1];
       const curr = sorted[idx];
+      const prevId = parseInt(prev.turnId, 10);
+      if (occupied.has(prevId)) break;
       const prevTime = getTurnTime(prev);
       const currTime = getTurnTime(curr);
       if (prevTime && currTime && currTime - prevTime <= gapMs) {
-        memberIds.add(parseInt(prev.turnId, 10));
+        memberIds.add(prevId);
         idx--;
       } else {
         break;
@@ -85,14 +119,16 @@ export function createContextTools(ctx: Ctx) {
     }
 
     // Expand forward.
-    idx = hitIndex;
-    while (idx < sorted.length - 1) {
+    idx = maxIndex;
+    while (idx < sorted.length - 1 && memberIds.size < maxClusterSize) {
       const curr = sorted[idx];
       const next = sorted[idx + 1];
+      const nextId = parseInt(next.turnId, 10);
+      if (occupied.has(nextId)) break;
       const currTime = getTurnTime(curr);
       const nextTime = getTurnTime(next);
       if (currTime && nextTime && nextTime - currTime <= gapMs) {
-        memberIds.add(parseInt(next.turnId, 10));
+        memberIds.add(nextId);
         idx++;
       } else {
         break;
@@ -101,7 +137,7 @@ export function createContextTools(ctx: Ctx) {
 
     return {
       sessionId,
-      hitTurnId,
+      hitTurnId: minHitId,
       members: Array.from(memberIds)
         .sort((a, b) => a - b)
         .map((turnId) => ({ sessionId, turnId })),
@@ -179,86 +215,134 @@ export function createContextTools(ctx: Ctx) {
     }
 
     const clusterGapSeconds = resolveClusterGapSeconds(args);
-    const { matches, hits } = await searchWireContext(query, {
+    const maxClusterSize =
+      typeof args.max_cluster_size === 'number' && args.max_cluster_size > 0
+        ? Math.max(2, Math.floor(args.max_cluster_size))
+        : 15;
+    const { matches, hits, skippedSessionIds } = await searchWireContext(query, {
       limit: args.limit,
       dateFrom: args.date_from,
       dateTo: args.date_to,
+      refinedManager,
     });
 
     // Build clusters around each hit and refine any unrefined turns in them.
     const hitsBySession = new Map<string, WireTurn[]>();
-    const sessionTurns = new Map<string, WireTurn[]>();
     for (const { sessionId, turn } of hits) {
       hitsBySession.set(sessionId, [...(hitsBySession.get(sessionId) || []), turn]);
     }
 
     const clusters: Cluster[] = [];
+    const refinedCountByCluster: number[] = [];
     const refinedIdsBySession = new Map<string, Set<number>>();
     let refinedCount = 0;
 
+    // First pass: build all clusters and aggregate per-session turn ids to refine.
+    const toRefineBySession = new Map<string, Map<number, WireTurn>>();
+    const skippedSessions: string[] = skippedSessionIds ? [...skippedSessionIds] : [];
     for (const [sessionId, sessionHits] of hitsBySession.entries()) {
-      const { turns } = await parseWireFile(
+      const wirePath =
         getCurrentSessionWirePath()?.sessionId === sessionId
           ? getCurrentSessionWirePath()!.wire
-          : findSessionWirePath(sessionId),
-      );
-      sessionTurns.set(sessionId, turns);
+          : findSessionWirePath(sessionId);
+      if (!wirePath) {
+        skippedSessions.push(sessionId);
+        continue;
+      }
+      const { turns } = await parseWireFile(wirePath);
 
       const existing = refinedManager.loadRefinedTurns(sessionId);
       const existingIds = new Set(existing.map((t) => t.turnId));
       refinedIdsBySession.set(sessionId, existingIds);
 
-      for (const hit of sessionHits) {
-        const hitTurnId = parseInt(hit.turnId, 10);
-        const cluster = expandCluster(sessionId, turns, hitTurnId, clusterGapSeconds);
+      const turnById = new Map(turns.map((t) => [parseInt(t.turnId, 10), t]));
+      const sessionToRefine = new Map<number, WireTurn>();
+      toRefineBySession.set(sessionId, sessionToRefine);
+
+      // Group adjacent hits into blocks to avoid one-cluster-per-hit overlap.
+      const blocks = groupHitsIntoBlocks(sessionHits);
+      const occupied = new Set<number>();
+
+      for (const block of blocks) {
+        const blockHitIds = block.map((h) => parseInt(h.turnId, 10));
+        const cluster = expandCluster(
+          sessionId,
+          turns,
+          blockHitIds,
+          clusterGapSeconds,
+          occupied,
+          maxClusterSize,
+        );
         clusters.push(cluster);
 
-        const toRefine = cluster.members
-          .filter((m) => !existingIds.has(m.turnId))
-          .map((m) => {
-            const turn = turns.find((t) => parseInt(t.turnId, 10) === m.turnId);
-            return turn
-              ? refinedManager.refineTurn(
-                  { ...turn, timestamp: turn.timestamp || undefined },
-                  sessionId,
-                )
-              : null;
-          })
-          .filter((t): t is NonNullable<typeof t> => t !== null);
-
-        if (toRefine.length > 0) {
-          await refinedManager.saveRefinedTurns(sessionId, toRefine);
-          refinedCount += toRefine.length;
+        let clusterRefined = 0;
+        for (const m of cluster.members) {
+          occupied.add(m.turnId);
+          if (existingIds.has(m.turnId)) continue;
+          const turn = turnById.get(m.turnId);
+          if (!turn) continue;
+          sessionToRefine.set(m.turnId, turn);
+          clusterRefined++;
         }
+        refinedCountByCluster.push(clusterRefined);
+      }
+    }
+
+    // Second pass: batch refine per session to avoid repeated saves and redundant work.
+    for (const [sessionId, sessionToRefine] of toRefineBySession.entries()) {
+      if (sessionToRefine.size === 0) continue;
+      const refinedTurns = Array.from(sessionToRefine.values())
+        .map((turn) =>
+          refinedManager.refineTurn(
+            { ...turn, timestamp: turn.timestamp || undefined },
+            sessionId,
+          ),
+        )
+        .filter((t): t is NonNullable<typeof t> => t !== null);
+
+      if (refinedTurns.length > 0) {
+        await refinedManager.saveRefinedTurns(sessionId, refinedTurns);
+        refinedCount += refinedTurns.length;
       }
     }
 
     // Save the search view (only references, no content).
-    saveSearchView(query, clusters);
+    saveSearchView(query, clusters, refinedCountByCluster, matches.length, refinedCount, clusterGapSeconds, maxClusterSize, skippedSessions);
 
     return toolResult({
       query,
       totalMatches: matches.length,
       matches,
       clusterGapSeconds,
-      clusters: clusters.map((c) => ({
+      maxClusterSize,
+      skippedSessions,
+      clusters: clusters.map((c, i) => ({
         sessionId: c.sessionId,
         hitTurnId: c.hitTurnId,
         memberCount: c.members.length,
+        refinedCount: refinedCountByCluster[i] || 0,
         members: c.members,
       })),
       refinedCount,
     });
   }
 
-  function findSessionWirePath(sessionId: string): string {
+  function findSessionWirePath(sessionId: string): string | null {
     const sessions = findAllWorkspaceSessions();
     const session = sessions.find((s) => s.sessionId === sessionId);
-    if (!session) throw new Error(`Session not found: ${sessionId}`);
-    return session.wire;
+    return session ? session.wire : null;
   }
 
-  function saveSearchView(query: string, clusters: Cluster[]): void {
+  function saveSearchView(
+    query: string,
+    clusters: Cluster[],
+    refinedCountByCluster: number[] = [],
+    totalMatches = 0,
+    totalRefined = 0,
+    gapSeconds = DEFAULT_CLUSTER_GAP_SECONDS,
+    maxClusterSize = 15,
+    skippedSessions: string[] = [],
+  ): void {
     const normalized = query
       .toLowerCase()
       .split(/\s+/)
@@ -273,9 +357,16 @@ export function createContextTools(ctx: Ctx) {
     const view = {
       query,
       createdAt: new Date().toISOString(),
-      clusters: clusters.map((c) => ({
+      totalMatches,
+      totalRefined,
+      gapSeconds,
+      maxClusterSize,
+      skippedSessions,
+      clusters: clusters.map((c, i) => ({
         sessionId: c.sessionId,
         hitTurnId: c.hitTurnId,
+        memberCount: c.members.length,
+        refinedCount: refinedCountByCluster[i] || 0,
         members: c.members,
       })),
     };
