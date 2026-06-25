@@ -216,9 +216,9 @@ Agent：[调用 mcp__kimi-memory__tag_theme] theme=cache-design
 
 ![时间轴上的 turns、簇、session 与主题追溯](./assets/contextFlow.svg)
 
-下面是一段真实的 Kimi Code CLI 会话录屏，使用 `kimi-memory`。用户先后要求总结 MCP 记忆服务器的演进历史、以及 E2E 测试工具的演进历史；Agent 跨会话召回相关记忆与对话 turns，并生成结构化总结。
+下面是一段真实的 Kimi Code CLI 会话动图，使用 `kimi-memory`。用户先后要求总结 MCP 记忆服务器的演进历史、以及 E2E 测试工具的演进历史；Agent 跨会话召回相关记忆与对话 turns，并生成结构化总结。
 
-<video src="https://github.com/Zehee/kimi-code-memory-mcp-server/raw/main/assets/exp.mp4" controls width="100%"></video>
+![Kimi Memory MCP Server 演示](https://github.com/user-attachments/assets/a8947676-1487-47ed-8e0c-8d15f8662618)
 
 ## 存储布局
 
