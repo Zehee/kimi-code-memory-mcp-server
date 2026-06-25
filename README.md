@@ -10,7 +10,6 @@
 
 > **注意：** 本包已发布到 npm，包名为 `kimi-code-memory-mcp-server`。你可以直接安装，也可以从源码运行。
 
-面向用户的记忆以普通 Markdown 文件存储在磁盘上。精炼轮次摘要使用本地 SQLite 缓存，但无需向量数据库、图数据库或外部云服务。
 
 ## 特性
 
@@ -24,33 +23,28 @@
 
 ## 主题追溯
 
-大多数上下文窗口只按**时间纵向**查看。主题追溯还按**横向**查找：它发现跨多个会话中属于同一主题的轮次，并呈现其演化过程。
+传统的上下文管理只关注**纵向**：时间越近越清晰，越久越远越衰减。但这忽略了真实工作的一个核心特征：
 
-每个对话轮次被看作一个柱子。相同主题的轮次会被连接起来，因此你可以问"登录模块是怎么演进的？"，而不只是"我们刚才说了什么？"
+> **同一个 workspace 中的多次会话，往往不是单一叙事，而是多条主题线交织并行。**
 
-```mermaid
-%%{init: {'theme': 'base'}}%%
-flowchart LR
-    subgraph SessionA["会话 A"]
-        A1["🟦 轮次 1<br/>登录表单"]
-        A2["🟥 轮次 5<br/>数据库 schema 草稿"]
-    end
+例如：
 
-    subgraph SessionB["会话 B"]
-        B1["🟦 轮次 2<br/>JWT 策略"]
-        B2["🟥 轮次 4<br/>迁移方案"]
-    end
+- Session A：开发 auth 鉴权
+- Session B：讨论orders数据表的迁移问题
+- Session C：加密RSA+解密BCrypt+验证码CAPTCHA+Cookie 
+- Session D：fix sql  error bug
+- Session E： 登录Login API设计
 
-    subgraph SessionC["会话 C"]
-        C1["🟦 轮次 3<br/>OAuth 流程"]
-        C2["🟥 轮次 6<br/>索引调优"]
-    end
+如果只看纵向，这些 session 彼此独立。但如果横向扫描，会发现 A、C、E 都属于"注册登录"这一主题。
 
-    A1 -. "登录模块主题" .-> B1
-    B1 -. "登录模块主题" .-> C1
-    A2 -. "数据库设计主题" .-> B2
-    B2 -. "数据库设计主题" .-> C2
-```
+**主题追溯**就是：把时间线上的每个 turn 看作一个圆柱，圆柱的高度代表该 turn 的计算/思考深度，颜色/标签代表主题。我们甚至可以从kimi code已经压缩归档的上下文中再次挖掘，进行深度横向扫描，把同色圆柱（对话轮turns）找出来，重新建立关联，组成theme并存入记忆。
+>下图展示了 `kimi-memory` 如何看待对话历史：竖条是时间轴上的 turn，粗横线是簇，灰框是 session，彩色括号把跨 session 的相关 turns / clusters 串联成主题线。
+
+![时间轴上的 turns、簇、session 与主题追溯](./assets/contextFlow.svg)
+
+下面是一段真实的 Kimi Code CLI 会话动图，使用 `kimi-memory`。用户先后要求总结 MCP 记忆服务器的演进历史、以及 E2E 测试工具的演进历史；Agent 跨会话召回相关记忆与对话 turns，并生成结构化总结。
+
+![Kimi Memory MCP Server 演示](https://github.com/user-attachments/assets/a8947676-1487-47ed-8e0c-8d15f8662618)
 
 相关工具：`tag_theme`、`trace_theme`、`list_themes`、`search_context`、`refine_session_turns`、`load_turn_context`。
 
@@ -209,16 +203,6 @@ Agent：[调用 mcp__kimi-memory__tag_theme] theme=cache-design
        [调用 mcp__kimi-memory__trace_theme] theme=cache-design
        → 展示跨会话的相关轮次和决策
 ```
-
-## 实际效果
-
-下图展示了 `kimi-memory` 如何看待对话历史：竖条是时间轴上的 turn，粗横线是簇，灰框是 session，彩色括号把跨 session 的相关 turns / clusters 串联成主题线。
-
-![时间轴上的 turns、簇、session 与主题追溯](./assets/contextFlow.svg)
-
-下面是一段真实的 Kimi Code CLI 会话动图，使用 `kimi-memory`。用户先后要求总结 MCP 记忆服务器的演进历史、以及 E2E 测试工具的演进历史；Agent 跨会话召回相关记忆与对话 turns，并生成结构化总结。
-
-![Kimi Memory MCP Server 演示](https://github.com/user-attachments/assets/a8947676-1487-47ed-8e0c-8d15f8662618)
 
 ## 存储布局
 

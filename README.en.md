@@ -10,8 +10,6 @@ A local stdio MCP server that gives [Kimi Code CLI](https://github.com/MoonshotA
 
 > **Note:** This package is published to npm as `kimi-code-memory-mcp-server`. You can install it directly or run it from source.
 
-User-facing memories are stored as plain Markdown files on disk. Refined turn summaries use a local SQLite cache, but no vector database, graph database, or external cloud service is required.
-
 ## Features
 
 - **Markdown-first memories** — human-readable, git-friendly, LLM-compatible.
@@ -24,33 +22,29 @@ User-facing memories are stored as plain Markdown files on disk. Refined turn su
 
 ## Theme Tracing
 
-Most context windows only look **vertically** through time. Theme tracing also looks **horizontally**: it finds turns across multiple sessions that belong to the same topic and surfaces their evolution.
+Traditional context management only focuses on the **vertical** dimension: the closer in time, the clearer; the further away, the more it decays. But this misses a core feature of real work:
 
-Each conversation turn is treated as a column. Turns that share a theme are linked together so you can ask questions like "How did the login module evolve?" instead of only "What did we just say?"
+> **Multiple sessions in the same workspace are often not a single narrative, but several intertwined theme lines running in parallel.**
 
-```mermaid
-%%{init: {'theme': 'base'}}%%
-flowchart LR
-    subgraph SessionA["Session A"]
-        A1["🟦 Turn 1<br/>Login form"]
-        A2["🟥 Turn 5<br/>DB schema draft"]
-    end
+For example:
 
-    subgraph SessionB["Session B"]
-        B1["🟦 Turn 2<br/>JWT strategy"]
-        B2["🟥 Turn 4<br/>Migration plan"]
-    end
+- Session A: developing auth authentication
+- Session B: discussing orders table migration
+- Session C: encryption RSA + decryption BCrypt + CAPTCHA + Cookie
+- Session D: fix SQL error bug
+- Session E: login Login API design
 
-    subgraph SessionC["Session C"]
-        C1["🟦 Turn 3<br/>OAuth flow"]
-        C2["🟥 Turn 6<br/>Index tuning"]
-    end
+If you only look vertically, these sessions appear independent. But if you scan horizontally, you'll find that A, C, and E all belong to the "registration/login" theme.
 
-    A1 -. "login-module theme" .-> B1
-    B1 -. "login-module theme" .-> C1
-    A2 -. "database-design theme" .-> B2
-    B2 -. "database-design theme" .-> C2
-```
+**Theme tracing** is: treat each turn on the timeline as a cylinder, where the height represents the turn's computation/thinking depth, and the color/tag represents the theme. We can even mine from Kimi Code's already compressed and archived context, perform deep horizontal scanning, find cylinders (turns) of the same color, re-establish their associations, form a theme, and store it in memory.
+
+> The diagram below shows how `kimi-memory` views conversation history: vertical bars are turns on the timeline, thick horizontal lines are clusters, gray boxes are sessions, and colored brackets connect related turns/clusters across sessions into theme lines.
+
+![Turns, clusters, sessions, and theme tracing over time](./assets/contextFlow.svg)
+
+The animated clip below is a real Kimi Code CLI session using `kimi-memory`. The user asks for two cross-session summaries — first the evolution history of the MCP memory server itself, then the evolution history of the E2E testing tools. The agent retrieves related memories and conversation turns, then synthesizes structured answers.
+
+![Kimi Memory MCP Server demo](https://github.com/user-attachments/assets/a8947676-1487-47ed-8e0c-8d15f8662618)
 
 Tools: `tag_theme`, `trace_theme`, `list_themes`, `search_context`, `refine_session_turns`, `load_turn_context`.
 
@@ -209,16 +203,6 @@ Agent: [calls mcp__kimi-memory__tag_theme] theme=cache-design
        [calls mcp__kimi-memory__trace_theme] theme=cache-design
        → shows related turns and decisions across sessions
 ```
-
-## See It in Action
-
-The diagram below shows how `kimi-memory` sees conversation history: turns are vertical bars on a timeline, clusters group related turns, sessions are horizontal containers, and themes connect relevant turns across sessions.
-
-![Turns, clusters, sessions, and theme tracing over time](./assets/contextFlow.svg)
-
-The animated clip below is a real Kimi Code CLI session using `kimi-memory`. The user asks for two cross-session summaries — first the evolution history of the MCP memory server itself, then the evolution history of the E2E testing tools. The agent retrieves related memories and conversation turns, then synthesizes structured answers.
-
-![Kimi Memory MCP Server demo](https://github.com/user-attachments/assets/a8947676-1487-47ed-8e0c-8d15f8662618)
 
 ## Storage Layout
 
