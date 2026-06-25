@@ -36,7 +36,7 @@ For example:
 
 If you only look vertically, these sessions appear independent. But if you scan horizontally, you'll find that A, C, and E all belong to the "registration/login" theme.
 
-**Theme tracing** is: treat each turn on the timeline as a cylinder, where the height represents the turn's computation/thinking depth, and the color/tag represents the theme. We can even mine from Kimi Code's already compressed and archived context, perform deep horizontal scanning, find cylinders (turns) of the same color, re-establish their associations, form a theme, and store it in memory.
+**Theme tracing** is: treat each turn on the timeline as a cylinder, where the height represents the turn's computation/thinking depth, and the color/tag represents the theme. We can even mine from Kimi Code's already compressed and archived context, perform deep horizontal scanning, find cylinders (turns) of the same color, re-establish their associations, form a theme, and store it in memory. Three weeks later, when you're about to upgrade your "registration/login" module or fix a bug, you don't have to re-explain the original design rationale to an agent whose context has been compressed countless times. Instead, your agent can say: "I just traced the 'registration/login' theme. Based on the design decision from three weeks ago and the two adjustments made since then, we should use solution B for the current problem."
 
 > The diagram below shows how `kimi-memory` views conversation history: vertical bars are turns on the timeline, thick horizontal lines are clusters, gray boxes are sessions, and colored brackets connect related turns/clusters across sessions into theme lines.
 
