@@ -7,7 +7,7 @@
 
 一个为 [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code) 提供跨会话记忆的本地 stdio MCP 服务器。
 
-> **注意：** 本包尚未发布到 npm，请按下面的说明从源码安装运行。
+> **注意：** 本包已发布到 npm，包名为 `kimi-code-memory-mcp-server`。你可以直接安装，也可以从源码运行。
 
 面向用户的记忆以普通 Markdown 文件存储在磁盘上。精炼轮次摘要使用本地 SQLite 缓存，但无需向量数据库、图数据库或外部云服务。
 
@@ -40,7 +40,15 @@ Markdown + YAML frontmatter 带来：
 
 ## 安装
 
-目前本包需要从源码安装。需要 Node.js ≥ 18。
+需要 Node.js ≥ 18。
+
+### 从 npm 安装（推荐）
+
+```bash
+npm install -g kimi-code-memory-mcp-server
+```
+
+### 从源码安装
 
 ```bash
 git clone https://github.com/Zehee/kimi-code-memory-mcp-server.git
@@ -51,7 +59,37 @@ npm run build
 
 ## 配置 Kimi Code CLI
 
-编辑 `~/.kimi-code/mcp.json`，指向构建后的服务器入口：
+编辑 `~/.kimi-code/mcp.json` 并添加服务器。
+
+如果你用 `npm install -g` 安装，使用全局 `node_modules` 中 `dist/server.js` 的绝对路径：
+
+```json
+{
+  "mcpServers": {
+    "kimi-memory": {
+      "command": "node",
+      "args": ["/absolute/path/to/global/node_modules/kimi-code-memory-mcp-server/dist/server.js"],
+      "enabled": true
+    }
+  }
+}
+```
+
+或者直接通过 `npx` 运行（无需安装）：
+
+```json
+{
+  "mcpServers": {
+    "kimi-memory": {
+      "command": "npx",
+      "args": ["-y", "kimi-code-memory-mcp-server"],
+      "enabled": true
+    }
+  }
+}
+```
+
+如果你从源码构建，指向本地 `dist/server.js`：
 
 ```json
 {

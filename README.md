@@ -7,7 +7,7 @@
 
 A local stdio MCP server that gives [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code) cross-session memory.
 
-> **Note:** This package is not yet published to npm. Install and run it from source (see below).
+> **Note:** This package is published to npm as `kimi-code-memory-mcp-server`. You can install it directly or run it from source.
 
 User-facing memories are stored as plain Markdown files on disk. Refined turn summaries use a local SQLite cache, but no vector database, graph database, or external cloud service is required.
 
@@ -40,7 +40,15 @@ See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the design rationale.
 
 ## Install
 
-Currently the package must be installed from source. Node.js ≥ 18 is required.
+Node.js ≥ 18 is required.
+
+### From npm (recommended)
+
+```bash
+npm install -g kimi-code-memory-mcp-server
+```
+
+### From source
 
 ```bash
 git clone https://github.com/Zehee/kimi-code-memory-mcp-server.git
@@ -51,7 +59,37 @@ npm run build
 
 ## Configure Kimi Code CLI
 
-Edit `~/.kimi-code/mcp.json` and point to the built server entry:
+Edit `~/.kimi-code/mcp.json` and add the server.
+
+If you installed from npm with `-g`, use the absolute path to `dist/server.js` inside your global `node_modules`:
+
+```json
+{
+  "mcpServers": {
+    "kimi-memory": {
+      "command": "node",
+      "args": ["/absolute/path/to/global/node_modules/kimi-code-memory-mcp-server/dist/server.js"],
+      "enabled": true
+    }
+  }
+}
+```
+
+Or run it directly via `npx` (no install required):
+
+```json
+{
+  "mcpServers": {
+    "kimi-memory": {
+      "command": "npx",
+      "args": ["-y", "kimi-code-memory-mcp-server"],
+      "enabled": true
+    }
+  }
+}
+```
+
+If you built from source, point to your local `dist/server.js`:
 
 ```json
 {
