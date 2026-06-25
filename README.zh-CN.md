@@ -25,29 +25,30 @@
 
 大多数上下文窗口只按**时间纵向**查看。主题追溯还按**横向**查找：它发现跨多个会话中属于同一主题的轮次，并呈现其演化过程。
 
-每个对话轮次被看作一个柱子。相同主题的轮次会被连接起来，因此你可以问"memory MCP server 是怎么演进的？"，而不只是"我们刚才说了什么？"
+每个对话轮次被看作一个柱子。相同主题的轮次会被连接起来，因此你可以问"登录模块是怎么演进的？"，而不只是"我们刚才说了什么？"
 
 ```mermaid
 %%{init: {'theme': 'base'}}%%
 flowchart LR
     subgraph SessionA["会话 A"]
-        A1["🟦 轮次 1<br/>狼人杀法官"]
-        A2["🟥 轮次 5<br/>MCP 设计"]
+        A1["🟦 轮次 1<br/>登录表单"]
+        A2["🟥 轮次 5<br/>数据库 schema 草稿"]
     end
 
     subgraph SessionB["会话 B"]
-        B1["🟩 轮次 2<br/>HIL 重构"]
-        B2["🟥 轮次 4<br/>上下文 bug"]
+        B1["🟦 轮次 2<br/>JWT 策略"]
+        B2["🟥 轮次 4<br/>迁移方案"]
     end
 
     subgraph SessionC["会话 C"]
-        C1["🟥 轮次 3<br/>记忆架构"]
-        C2["🟦 轮次 6<br/>狼人杀打磨"]
+        C1["🟦 轮次 3<br/>OAuth 流程"]
+        C2["🟥 轮次 6<br/>索引调优"]
     end
 
-    A2 -. "memory-mcp 主题" .-> B2
-    B2 -. "memory-mcp 主题" .-> C1
-    A1 -. "狼人杀主题" .-> C2
+    A1 -. "登录模块主题" .-> B1
+    B1 -. "登录模块主题" .-> C1
+    A2 -. "数据库设计主题" .-> B2
+    B2 -. "数据库设计主题" .-> C2
 ```
 
 相关工具：`tag_theme`、`trace_theme`、`list_themes`、`search_context`、`refine_session_turns`、`load_turn_context`。

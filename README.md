@@ -25,29 +25,30 @@ User-facing memories are stored as plain Markdown files on disk. Refined turn su
 
 Most context windows only look **vertically** through time. Theme tracing also looks **horizontally**: it finds turns across multiple sessions that belong to the same topic and surfaces their evolution.
 
-Each conversation turn is treated as a column. Turns that share a theme are linked together so you can ask questions like "How did the memory MCP server evolve?" instead of only "What did we just say?"
+Each conversation turn is treated as a column. Turns that share a theme are linked together so you can ask questions like "How did the login module evolve?" instead of only "What did we just say?"
 
 ```mermaid
 %%{init: {'theme': 'base'}}%%
 flowchart LR
     subgraph SessionA["Session A"]
-        A1["🟦 Turn 1<br/>Werewolf judge"]
-        A2["🟥 Turn 5<br/>MCP design"]
+        A1["🟦 Turn 1<br/>Login form"]
+        A2["🟥 Turn 5<br/>DB schema draft"]
     end
 
     subgraph SessionB["Session B"]
-        B1["🟩 Turn 2<br/>HIL refactor"]
-        B2["🟥 Turn 4<br/>Context bug"]
+        B1["🟦 Turn 2<br/>JWT strategy"]
+        B2["🟥 Turn 4<br/>Migration plan"]
     end
 
     subgraph SessionC["Session C"]
-        C1["🟥 Turn 3<br/>Memory arch"]
-        C2["🟦 Turn 6<br/>Werewolf polish"]
+        C1["🟦 Turn 3<br/>OAuth flow"]
+        C2["🟥 Turn 6<br/>Index tuning"]
     end
 
-    A2 -. "memory-mcp theme" .-> B2
-    B2 -. "memory-mcp theme" .-> C1
-    A1 -. "werewolf theme" .-> C2
+    A1 -. "login-module theme" .-> B1
+    B1 -. "login-module theme" .-> C1
+    A2 -. "database-design theme" .-> B2
+    B2 -. "database-design theme" .-> C2
 ```
 
 Tools: `tag_theme`, `trace_theme`, `list_themes`, `search_context`, `refine_session_turns`, `load_turn_context`.
