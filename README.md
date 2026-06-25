@@ -9,9 +9,7 @@ A local stdio MCP server that gives [Kimi Code CLI](https://github.com/MoonshotA
 
 > **Note:** This package is not yet published to npm. Install and run it from source (see below).
 
-All data is stored as plain Markdown files on disk. No vector database, no graph database, no external services.
-
-> **Note for publishers:** Replace `Zehee` in badge URLs and `package.json` with your actual GitHub username or organization before publishing.
+User-facing memories are stored as plain Markdown files on disk. Refined turn summaries use a local SQLite cache, but no vector database, graph database, or external cloud service is required.
 
 ## Features
 
@@ -35,7 +33,7 @@ Markdown + YAML frontmatter gives you:
 
 - Full readability and editability
 - Native git diff support
-- Zero external dependencies
+- No required external database or cloud service
 - Compatibility with any LLM that can read text
 
 See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the design rationale.
@@ -97,20 +95,20 @@ The Skill does **not** enforce behavior on its own; it is a dispatcher. The actu
 
 ## Quick Start
 
-After the server is loaded, the agent can call memory tools naturally:
+After the server is loaded, the agent can call memory tools naturally (tool names are prefixed with the MCP server name you configured, e.g. `mcp__kimi-memory__*`):
 
 ```text
 User: Let's use SQLite for the cache layer.
-Agent: [calls remember] memory/decisions/use-sqlite-cache
+Agent: [calls mcp__kimi-memory__remember] key=use-sqlite-cache, folder=memory/decisions
 
 User: Why did we choose SQLite?
-Agent: [calls search] SQLite cache decision
-       [calls recall] use-sqlite-cache
+Agent: [calls mcp__kimi-memory__search] query=SQLite cache decision
+       [calls mcp__kimi-memory__recall] key=use-sqlite-cache, folder=memory/decisions
        → "We chose SQLite over Redis because..."
 
 User: How has the cache design evolved?
-Agent: [calls tag_theme] theme=cache-design
-       [calls trace_theme] cache-design
+Agent: [calls mcp__kimi-memory__tag_theme] theme=cache-design
+       [calls mcp__kimi-memory__trace_theme] theme=cache-design
        → shows related turns and decisions across sessions
 ```
 
@@ -175,6 +173,7 @@ You can override the storage root with the `MEMORY_STORE_ROOT` environment varia
 git clone https://github.com/Zehee/kimi-code-memory-mcp-server.git
 cd kimi-code-memory-mcp-server
 npm install
+npm run build
 npm test
 npm run lint
 ```
@@ -211,7 +210,7 @@ src/
 - [x] Modular source structure
 - [x] ESLint + Prettier
 - [x] Basic integration tests
-- [ ] Full test coverage for context/theme tools
+- [x] Core test coverage for context/theme tools
 - [ ] Optional local embedding search
 - [ ] Optional LLM-based turn refinement
 - [ ] Pluggable wire format adapters

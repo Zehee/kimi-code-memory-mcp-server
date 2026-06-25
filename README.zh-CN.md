@@ -9,9 +9,7 @@
 
 > **注意：** 本包尚未发布到 npm，请按下面的说明从源码安装运行。
 
-所有数据都以普通 Markdown 文件存储在磁盘上。无需向量数据库、图数据库或外部服务。
-
-> **发布前提示：** 请将 badge 链接和 `package.json` 中的 `Zehee` 替换为你的真实 GitHub 用户名或组织名。
+面向用户的记忆以普通 Markdown 文件存储在磁盘上。精炼轮次摘要使用本地 SQLite 缓存，但无需向量数据库、图数据库或外部云服务。
 
 ## 特性
 
@@ -35,7 +33,7 @@ Markdown + YAML frontmatter 带来：
 
 - 完全可读、可编辑
 - 原生支持 git diff
-- 零外部依赖
+- 无需外部数据库或云服务
 - 兼容任何能读取文本的 LLM
 
 设计 rationale 见 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)。
@@ -97,20 +95,20 @@ cp -r skills/memory-manage ~/.kimi-code/skills/memory-manage
 
 ## 快速开始
 
-服务器加载后，Agent 可以自然地调用记忆工具：
+服务器加载后，Agent 可以自然地调用记忆工具（工具名带有你在 MCP 配置中注册的 server 名称前缀，例如 `mcp__kimi-memory__*`）：
 
 ```text
 用户：我们用 SQLite 作为缓存层。
-Agent：[调用 remember] memory/decisions/use-sqlite-cache
+Agent：[调用 mcp__kimi-memory__remember] key=use-sqlite-cache, folder=memory/decisions
 
 用户：为什么选 SQLite？
-Agent：[调用 search] SQLite cache decision
-       [调用 recall] use-sqlite-cache
+Agent：[调用 mcp__kimi-memory__search] query=SQLite cache decision
+       [调用 mcp__kimi-memory__recall] key=use-sqlite-cache, folder=memory/decisions
        → "我们选择 SQLite 而不是 Redis，因为……"
 
 用户：缓存设计是怎么演化的？
-Agent：[调用 tag_theme] theme=cache-design
-       [调用 trace_theme] cache-design
+Agent：[调用 mcp__kimi-memory__tag_theme] theme=cache-design
+       [调用 mcp__kimi-memory__trace_theme] theme=cache-design
        → 展示跨会话的相关轮次和决策
 ```
 
@@ -175,6 +173,7 @@ Agent：[调用 tag_theme] theme=cache-design
 git clone https://github.com/Zehee/kimi-code-memory-mcp-server.git
 cd kimi-code-memory-mcp-server
 npm install
+npm run build
 npm test
 npm run lint
 ```
@@ -211,7 +210,7 @@ src/
 - [x] 模块化源码结构
 - [x] ESLint + Prettier
 - [x] 基础集成测试
-- [ ] 上下文/主题工具完整测试覆盖
+- [x] 上下文/主题工具核心测试覆盖
 - [ ] 可选本地 embedding 搜索
 - [ ] 可选 LLM 精炼轮次
 - [ ] 可插拔 wire 格式适配器
