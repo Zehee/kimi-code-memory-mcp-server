@@ -220,7 +220,6 @@ src/
 
 - [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — system design and data flow
 - [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md) — how to contribute
-- [`docs/third-party-evaluation.md`](./docs/third-party-evaluation.md) — original design evaluation
 
 ## License
 

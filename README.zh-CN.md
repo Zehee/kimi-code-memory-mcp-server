@@ -220,7 +220,6 @@ src/
 
 - [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) —— 系统设计与数据流
 - [`docs/CONTRIBUTING.zh-CN.md`](./docs/CONTRIBUTING.zh-CN.md) —— 如何贡献
-- [`docs/third-party-evaluation.md`](./docs/third-party-evaluation.md) —— 原始设计评估
 
 ## 许可证
 
