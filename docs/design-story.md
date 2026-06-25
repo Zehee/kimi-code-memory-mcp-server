@@ -147,7 +147,7 @@ wire.jsonl  ──►  refined/refined.sqlite  ──►  search_context / trace
 
 想象一条水平向右延伸的时间轴。上面的每一个小圆柱都是一次对话轮（turn）：
 
-![时间轴上的 turns、簇、session 与主题追溯](./assets/contextFlow.svg)
+![时间轴上的 turns、簇、session 与主题追溯](../assets/contextFlow.svg)
 
 图中元素：
 

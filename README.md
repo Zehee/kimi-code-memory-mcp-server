@@ -211,9 +211,11 @@ Agent: [calls mcp__kimi-memory__tag_theme] theme=cache-design
 
 ## See It in Action
 
-The recording below is a real Kimi Code CLI session using `kimi-memory`. The user asks for two cross-session summaries — first the evolution history of the MCP memory server itself, then the evolution history of the E2E testing tools. The agent retrieves related memories and conversation turns, then synthesizes structured answers.
+The diagram below shows how `kimi-memory` sees conversation history: turns are vertical bars on a timeline, clusters group related turns, sessions are horizontal containers, and themes connect relevant turns across sessions.
 
-<video src="./assets/exp.mp4" controls width="100%"></video>
+![Turns, clusters, sessions, and theme tracing over time](./assets/contextFlow.svg)
+
+The same idea applies to the video demo: the user asks for cross-session summaries, and the agent retrieves related turns and memories along these theme lines.
 
 ## Storage Layout
 

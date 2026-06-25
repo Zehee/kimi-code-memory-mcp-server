@@ -211,9 +211,11 @@ Agent：[调用 mcp__kimi-memory__tag_theme] theme=cache-design
 
 ## 实际效果
 
-下面是一段真实的 Kimi Code CLI 会话录屏，使用 `kimi-memory`。用户先后要求总结 MCP 记忆服务器的演进历史、以及 E2E 测试工具的演进历史；Agent 跨会话召回相关记忆与对话 turns，并生成结构化总结。
+下图展示了 `kimi-memory` 如何看待对话历史：竖条是时间轴上的 turn，粗横线是簇，灰框是 session，彩色括号把跨 session 的相关 turns / clusters 串联成主题线。
 
-<video src="./assets/exp.mp4" controls width="100%"></video>
+![时间轴上的 turns、簇、session 与主题追溯](./assets/contextFlow.svg)
+
+同样的思路也体现在实际演示中：用户要求跨会话总结时，Agent 会沿着这些主题线召回相关的 turns 和记忆。
 
 ## 存储布局
 
