@@ -21,6 +21,37 @@
 - **精炼轮次摘要** —— 可在多个主题间共享的轮次级原子摘要。
 - **可重建索引** —— `index.json` 只是缓存，`.md` 文件才是真相来源。
 
+## 主题追溯
+
+大多数上下文窗口只按**时间纵向**查看。主题追溯还按**横向**查找：它发现跨多个会话中属于同一主题的轮次，并呈现其演化过程。
+
+每个对话轮次被看作一个柱子。相同主题的轮次会被连接起来，因此你可以问"memory MCP server 是怎么演进的？"，而不只是"我们刚才说了什么？"
+
+```mermaid
+%%{init: {'theme': 'base'}}%%
+flowchart LR
+    subgraph SessionA["会话 A"]
+        A1["🟦 轮次 1<br/>狼人杀法官"]
+        A2["🟥 轮次 5<br/>MCP 设计"]
+    end
+
+    subgraph SessionB["会话 B"]
+        B1["🟩 轮次 2<br/>HIL 重构"]
+        B2["🟥 轮次 4<br/>上下文 bug"]
+    end
+
+    subgraph SessionC["会话 C"]
+        C1["🟥 轮次 3<br/>记忆架构"]
+        C2["🟦 轮次 6<br/>狼人杀打磨"]
+    end
+
+    A2 -. "memory-mcp 主题" .-> B2
+    B2 -. "memory-mcp 主题" .-> C1
+    A1 -. "狼人杀主题" .-> C2
+```
+
+相关工具：`tag_theme`、`trace_theme`、`list_themes`、`search_context`、`refine_session_turns`、`load_turn_context`。
+
 ## 为什么用 Markdown？
 
 大多数 Agent 记忆系统默认使用向量数据库。这在模糊检索场景有效，但也让记忆变得不透明、难以审计、难以版本控制。
