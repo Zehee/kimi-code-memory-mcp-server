@@ -219,6 +219,7 @@ src/
 ## Related Documents
 
 - [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — system design and data flow
+- [`docs/search-logic.md`](./docs/search-logic.md) — how `search` and `search_context` work
 - [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md) — how to contribute
 
 ## License
