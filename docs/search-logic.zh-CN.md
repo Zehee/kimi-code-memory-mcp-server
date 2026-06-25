@@ -73,13 +73,15 @@ flowchart TD
     B -->|否| D[全量扫描当前工作区所有 session]
     C --> E{wire 文件存在?}
     E -->|是| F[构建 matches & hits]
-    E -->|否| G[加入 skippedSessions]
+    E -->|否| G[从 refined summary 构建 match]
     D --> F
     F --> H[按 session 分组 hits]
+    G --> M[返回 refined-only matches]
     H --> I[围绕命中点扩展 cluster]
     I --> J[精炼 cluster 中未精炼的 turn]
     J --> K[将精炼结果写入 SQLite]
     K --> L[返回 matches, clusters, skippedSessions]
+    M --> L
 ```
 
 ### 两阶段搜索
@@ -92,8 +94,9 @@ flowchart TD
 - 用 SQL `LIKE` 要求所有关键词都匹配 `summary`、`facts`、`notes` 列。
 - 按关键词出现频次打分并排序返回。
 - 对每个 refined 命中，尝试从对应 session 的 `wire.jsonl` 加载原始 turn。
-  - 如果 wire 已不存在，把 `sessionId` 加入 `skippedSessions`。
-  - 如果有命中（或存在 skip），直接返回，不再走全量扫描。
+  - 如果 wire 仍存在，使用完整 turn 内容构建 match，并作为 hit 参与 cluster 扩展。
+  - 如果 wire 已不存在，直接用 refined 记录本身作为 match 返回。其 `summary` 会作为 `agent` 文本和 `snippet`，即使没有原始 wire，关键信息也不会丢失。
+  - 如果有命中，直接返回，不再走全量扫描。
 
 #### 第二阶段 —— 全量 wire 扫描兜底
 
@@ -108,7 +111,7 @@ flowchart TD
 
 回到 `handleSearchContext`：
 
-1. **按 session 分组 hits**。
+1. **按 session 分组 hits**。只有存在 wire 的 hit 才会参与 cluster；纯 refined 命中作为独立结果返回。
 2. **扩展 cluster**：对每个命中点，吸收 `cluster_gap_seconds`（默认 90 秒）内的相邻 turn，最多 `max_cluster_size` 个。
 3. **精炼缺失 turn**：cluster 中尚未写入 SQLite 的 turn 会批量传给 `refinedManager.refineTurn()` 并保存。
 4. **返回** `matches`、`clusters`、`skippedSessions`、`refinedCount`。

@@ -73,13 +73,15 @@ flowchart TD
     B -->|No| D[Full scan all workspace sessions]
     C --> E{Wire file exists?}
     E -->|Yes| F[Build matches & hits]
-    E -->|No| G[Add to skippedSessions]
+    E -->|No| G[Build match from refined summary]
     D --> F
     F --> H[Group hits by session]
+    G --> M[Return refined-only matches]
     H --> I[Expand clusters around hits]
     I --> J[Refine unrefined turns in clusters]
     J --> K[Save refined turns to SQLite]
     K --> L[Return matches, clusters, skippedSessions]
+    M --> L
 ```
 
 ### Two-phase search
@@ -92,8 +94,9 @@ flowchart TD
 - Uses SQL `LIKE` to match all terms against `summary`, `facts`, and `notes` columns.
 - Returns matches sorted by keyword frequency score.
 - For each refined match, it tries to load the original turn from the session's `wire.jsonl`.
-  - If the wire is missing, the `sessionId` is added to `skippedSessions`.
-  - If matches are found (or skips exist), it returns early.
+  - If the wire still exists, the full turn content is used for the match and the turn becomes a hit for clustering.
+  - If the wire is missing, the refined record itself is returned as a match. Its `summary` becomes the `agent` text and `snippet`, so the key information is preserved even without the original wire.
+  - If matches are found, it returns early.
 
 #### Phase 2 — Full wire scan fallback
 
@@ -108,7 +111,7 @@ If refined search returns nothing, `searchWireContext` falls back to scanning ev
 
 Back in `handleSearchContext`:
 
-1. **Group hits by session**.
+1. **Group hits by session**. Only hits backed by an existing wire participate in clustering; refined-only matches are returned as standalone results.
 2. **Expand clusters**: for each hit, absorb nearby turns within `cluster_gap_seconds` (default 90s), up to `max_cluster_size`.
 3. **Refine missing turns**: turns inside clusters that are not yet in SQLite are passed to `refinedManager.refineTurn()` and saved in batch.
 4. **Return** `matches`, `clusters`, `skippedSessions`, and `refinedCount`.

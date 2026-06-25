@@ -263,6 +263,33 @@ function truncate(text: unknown, maxLen: number): string {
   return s.length > maxLen ? s.slice(0, maxLen) + '...' : s;
 }
 
+function buildMatchFromRefined(
+  refined: {
+    sessionId: string;
+    turnId: number;
+    timestamp: string | undefined;
+    summary: string;
+    facts: string[];
+    notes: string[];
+    score: number;
+  },
+  terms: string[],
+): SearchMatch {
+  // Refined summaries already condense user intent, tool usage, and agent lead.
+  // Use them as the primary content when the original wire is unavailable.
+  const snippetSource = [refined.summary, ...refined.facts, ...refined.notes].join('\n');
+  return {
+    sessionId: refined.sessionId,
+    turnId: refined.turnId,
+    timestamp: refined.timestamp ?? null,
+    score: refined.score,
+    user: '',
+    agent: truncate(refined.summary, 2000),
+    snippet: extractSnippet(snippetSource, terms, 240),
+    actions: [],
+  };
+}
+
 function summarizeToolArgs(name: string, args: unknown): string {
   if (!args || typeof args !== 'object') return '';
   const record = args as Record<string, unknown>;
@@ -572,13 +599,17 @@ export async function searchWireContext(query: string, options: SearchOptions = 
     for (const refined of refinedMatches) {
       const turns = await getSessionTurns(refined.sessionId);
       if (!turns) {
-        if (!skippedSessionIds.includes(refined.sessionId)) {
-          skippedSessionIds.push(refined.sessionId);
-        }
+        // The original wire has been removed, but the refined summary still
+        // contains the key facts. Return it instead of skipping.
+        matches.push(buildMatchFromRefined(refined, terms));
         continue;
       }
       const turn = turns.find((t) => parseInt(t.turnId, 10) === refined.turnId);
-      if (!turn) continue;
+      if (!turn) {
+        // The turn is gone from the wire; fall back to the refined record.
+        matches.push(buildMatchFromRefined(refined, terms));
+        continue;
+      }
 
       const roundDate = turn.timestamp ? turn.timestamp.slice(0, 10) : null;
       if (dateFrom && roundDate && roundDate < dateFrom) continue;

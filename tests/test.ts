@@ -559,7 +559,7 @@ async function testClusterMaxSize() {
   }
 }
 
-async function testSearchContextSkipsMissingSession() {
+async function testSearchContextReturnsRefinedForMissingWire() {
   const tmpSessions = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-code-missing-sessions-'));
   const cwd = process.cwd().replace(/\\/g, '/');
   const hash = computeWorkspaceHash(cwd);
@@ -595,12 +595,14 @@ async function testSearchContextSkipsMissingSession() {
         }),
       );
       assert(Array.isArray(result.matches));
-      assert(Array.isArray(result.skippedSessions));
       assert(
-        result.skippedSessions.includes(sessionId),
-        'search_context should skip session_missing_wire',
+        result.matches.some((m: { sessionId: string }) => m.sessionId === sessionId),
+        'search_context should return refined match even when wire is gone',
       );
-      // No valid wire means no full match content, but the search should not crash.
+      assert(
+        !result.skippedSessions.includes(sessionId),
+        'missing wire should not be reported as skipped when refined data exists',
+      );
     });
   } finally {
     if (previousSessionsRoot === undefined) {
@@ -660,7 +662,7 @@ const tests = [
   testSearchContextUsesRefined,
   testConfigurableSessionsRoot,
   testClusterMaxSize,
-  testSearchContextSkipsMissingSession,
+  testSearchContextReturnsRefinedForMissingWire,
   testListSearchViews,
   testLoadWorkspaceContext,
   testLoadMoreContextInvalid,
