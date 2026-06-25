@@ -209,6 +209,12 @@ Agent: [calls mcp__kimi-memory__tag_theme] theme=cache-design
        → shows related turns and decisions across sessions
 ```
 
+## See It in Action
+
+The recording below is a real Kimi Code CLI session using `kimi-memory`. The user asks for two cross-session summaries — first the evolution history of the MCP memory server itself, then the evolution history of the E2E testing tools. The agent retrieves related memories and conversation turns, then synthesizes structured answers.
+
+<video src="./assets/exp.mp4" controls width="100%"></video>
+
 ## Storage Layout
 
 The server stores data under `~/.kimi-code-memory/<workspace-id>/`:
