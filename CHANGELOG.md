@@ -22,5 +22,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow running tests and lint on pull requests.
 - MCP server versioning rules: SemVer for repository version, runtime version synced from `package.json`, and a release workflow that includes real-instance validation.
 
-[Unreleased]: https://github.com/Zehee/kimi-code-memory-mcp-server/compare/v0.1.0...HEAD
+## [0.1.1] - 2026-06-25
+
+### Added
+- `kimi-memory-setup` command for one-click Kimi Code CLI integration.
+- `assets/user-agents.md` template injected into `~/.kimi-code/AGENTS.md` with a prominent bootstrap rule.
+- Automatic skill installation to `~/.kimi-code/skills/memory-manage`.
+- Automatic `kimi-memory` MCP server entry in `~/.kimi-code/mcp.json`.
+- `--dry-run` and `--undo` options for the setup command.
+
+### Changed
+- `search_context` now returns refined summaries directly when the original `wire.jsonl` is missing.
+- Improved `scripts/session-search-verify.mjs` with CLI/env args, safer parsing, and cleanup.
+- Updated READMEs to reflect npm-published status and setup command.
+
+[Unreleased]: https://github.com/Zehee/kimi-code-memory-mcp-server/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.1.0
