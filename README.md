@@ -218,7 +218,7 @@ The diagram below shows how `kimi-memory` sees conversation history: turns are v
 
 The recording below is a real Kimi Code CLI session using `kimi-memory`. The user asks for two cross-session summaries — first the evolution history of the MCP memory server itself, then the evolution history of the E2E testing tools. The agent retrieves related memories and conversation turns, then synthesizes structured answers.
 
-<video src="./assets/exp.mp4" controls width="100%"></video>
+<video src="https://github.com/Zehee/kimi-code-memory-mcp-server/raw/main/assets/exp.mp4" controls width="100%"></video>
 
 ## Storage Layout
 
