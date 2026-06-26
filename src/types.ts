@@ -30,9 +30,9 @@ export interface RecallArgs {
   folder?: string;
 }
 
-export interface RecallRecentArgs {
-  n?: number;
+export interface ListArgs {
   folder?: string;
+  limit?: number;
   tag?: string;
 }
 

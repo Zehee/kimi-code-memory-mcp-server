@@ -1,5 +1,5 @@
 /**
- * Memory CRUD tools: remember, recall, recall_recent, search, list, list_tags, delete, move.
+ * Memory CRUD tools: remember, recall, search, list, list_tags, delete, move.
  */
 
 import fs from 'fs';
@@ -8,7 +8,7 @@ import type {
   Ctx,
   RememberArgs,
   RecallArgs,
-  RecallRecentArgs,
+  ListArgs,
   SearchArgs,
   DeleteArgs,
   MoveArgs,
@@ -111,52 +111,6 @@ export function createMemoryTools(ctx: Ctx) {
     });
   }
 
-  function handleRecallRecent(args: RecallRecentArgs) {
-    const n = typeof args.n === 'number' ? Math.max(1, Math.floor(args.n)) : 10;
-    const folderFilterRaw = typeof args.folder === 'string' ? args.folder : null;
-    const folderFilter = folderFilterRaw ? sanitizeFolder(folderFilterRaw) : null;
-    if (folderFilterRaw && !folderFilter) {
-      return toolResult({ items: [], error: 'Invalid folder path' }, true);
-    }
-    const tagFilter = typeof args.tag === 'string' ? args.tag : null;
-
-    const index = indexDao.getIndex();
-    const items = [];
-    for (const key of Object.keys(index.index)) {
-      if (!key.endsWith('.md')) continue;
-      const value = index.index[key];
-      const folder = path.dirname(key);
-      const entryKey = path.basename(key, '.md');
-
-      if (folderFilter && folder !== folderFilter) continue;
-      if (tagFilter && (!Array.isArray(value.tags) || !value.tags.includes(tagFilter))) continue;
-
-      const filePath = path.join(storeRoot, key);
-      const stats = fileStats(filePath);
-      items.push({
-        key: entryKey,
-        folder,
-        title: value.title || toTitle(entryKey),
-        tags: Array.isArray(value.tags) ? value.tags : [],
-        updatedAt: stats ? stats.mtime.toISOString() : new Date().toISOString(),
-        preview: '',
-      });
-    }
-
-    items.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-
-    return toolResult({
-      items: items.slice(0, n).map((item) => {
-        const filePath = resolveFilePath(item.folder, item.key);
-        const parsed = safeParseFile(filePath);
-        return {
-          ...item,
-          preview: (parsed?.body || '').slice(0, 400),
-        };
-      }),
-    });
-  }
-
   function handleSearch(args: SearchArgs) {
     const query = args.query;
     if (!query || typeof query !== 'string') {
@@ -219,12 +173,14 @@ export function createMemoryTools(ctx: Ctx) {
     return toolResult({ tags: Array.from(tagSet).sort() });
   }
 
-  function handleList(args: RecallRecentArgs) {
+  function handleList(args: ListArgs) {
     const folderFilterRaw = typeof args.folder === 'string' ? args.folder : null;
     const folderFilter = folderFilterRaw ? sanitizeFolder(folderFilterRaw) : null;
     if (folderFilterRaw && !folderFilter) {
       return toolResult({ items: [], error: 'Invalid folder path' }, true);
     }
+    const tagFilter = typeof args.tag === 'string' ? args.tag : null;
+    const limit = typeof args.limit === 'number' ? Math.max(1, Math.floor(args.limit)) : null;
     const index = indexDao.getIndex();
 
     const items = [];
@@ -233,6 +189,7 @@ export function createMemoryTools(ctx: Ctx) {
       const value = index.index[key];
       const folder = path.dirname(key);
       if (folderFilter && folder !== folderFilter) continue;
+      if (tagFilter && (!Array.isArray(value.tags) || !value.tags.includes(tagFilter))) continue;
 
       const filePath = path.join(storeRoot, key);
       const stats = fileStats(filePath);
@@ -247,6 +204,20 @@ export function createMemoryTools(ctx: Ctx) {
     }
 
     items.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+    if (limit !== null) {
+      return toolResult({
+        items: items.slice(0, limit).map((item) => {
+          const filePath = resolveFilePath(item.folder, item.key);
+          const parsed = safeParseFile(filePath);
+          return {
+            ...item,
+            preview: (parsed?.body || '').slice(0, 400),
+          };
+        }),
+      });
+    }
+
     return toolResult({ items });
   }
 
@@ -332,7 +303,6 @@ export function createMemoryTools(ctx: Ctx) {
   return {
     handleRemember,
     handleRecall,
-    handleRecallRecent,
     handleSearch,
     handleListTags,
     handleList,

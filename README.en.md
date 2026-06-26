@@ -241,9 +241,8 @@ You can override the storage root with the `MEMORY_STORE_ROOT` environment varia
 |------|---------|
 | `remember` | Write a Markdown memory |
 | `recall` | Read a memory by key |
-| `recall_recent` | List recently updated memories |
 | `search` | Keyword search across memories |
-| `list` | List memories |
+| `list` | List memories, with optional folder / tag filter and limit |
 | `list_tags` | List all tags |
 | `delete` | Delete a memory |
 | `move` | Move or rename a memory |

@@ -17,7 +17,6 @@ export function createTools(ctx: Ctx) {
   const handlers = {
     remember: memory.handleRemember,
     recall: memory.handleRecall,
-    recall_recent: memory.handleRecallRecent,
     search: memory.handleSearch,
     list_tags: memory.handleListTags,
     list: memory.handleList,
@@ -84,18 +83,6 @@ export function createTools(ctx: Ctx) {
           folder: { type: 'string', description: 'Subfolder (default: memory)' },
         },
         required: ['key'],
-      },
-    },
-    {
-      name: 'recall_recent',
-      description: 'Return the most recently updated memory entries, optionally filtered.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          n: { type: 'number', description: 'Maximum number of entries to return (default: 10)' },
-          folder: { type: 'string', description: 'Filter to a specific subfolder' },
-          tag: { type: 'string', description: 'Filter to entries containing this tag' },
-        },
       },
     },
     {
@@ -219,11 +206,13 @@ export function createTools(ctx: Ctx) {
     },
     {
       name: 'list',
-      description: 'List all memory entries in the workspace, optionally filtered by folder.',
+      description: 'List memory entries in the workspace, sorted by most recently updated.',
       inputSchema: {
         type: 'object',
         properties: {
           folder: { type: 'string', description: 'Filter to a specific subfolder' },
+          limit: { type: 'number', description: 'Maximum number of entries to return (default: all)' },
+          tag: { type: 'string', description: 'Filter to entries containing this tag' },
         },
       },
     },

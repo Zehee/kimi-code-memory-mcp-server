@@ -67,7 +67,7 @@ This document explains how Kimi Code Memory MCP Server is structured, how data f
 | `src/server.ts` | MCP server entry, registers tools, starts stdio transport. |
 | `src/config.ts` | Default paths, environment variable handling (`MEMORY_STORE_ROOT`, `MEMORY_SESSIONS_ROOT`, `KIMI_CODE_HOME`). |
 | `src/tools/index.ts` | Tool schemas, validation, and dispatch. |
-| `src/tools/memory-tools.ts` | `remember`, `recall`, `recall_recent`, `search`, `list`, `list_tags`, `delete`, `move`. |
+| `src/tools/memory-tools.ts` | `remember`, `recall`, `search`, `list`, `list_tags`, `delete`, `move`. |
 | `src/tools/context-tools.ts` | `load_workspace_context`, `load_more_context`, `search_context`, `load_turn_context`. |
 | `src/tools/theme-tools.ts` | `tag_theme`, `trace_theme`, `list_themes`, `refine_session_turns`. |
 | `src/tools/system-tools.ts` | `organize_memories`, `sync_workspace_index`, `bootstrap_workspace`, `get_current_workspace`. |
@@ -115,7 +115,7 @@ This document explains how Kimi Code Memory MCP Server is structured, how data f
 
 1. **Capture** — Agent writes a memory via `remember`.
 2. **Index** — `IndexDao` updates `index.json` and writes the `.md` file.
-3. **Recall** — Agent uses `search`, `recall`, or `recall_recent` to retrieve memories.
+3. **Recall** — Agent uses `search`, `recall`, or `list` to retrieve memories.
 4. **Distill** — `organize_memories` condenses `memory/` into `essence/essence.md` (≤15 KB).
 5. **Trace** — `tag_theme` and `trace_theme` connect memories and conversation turns into evolving themes.
 6. **Archive/Move** — `move` renames or relocates a memory; `delete` removes it.

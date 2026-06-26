@@ -242,9 +242,8 @@ Agent：[调用 mcp__kimi-memory__tag_theme] theme=cache-design
 |------|------|
 | `remember` | 写入一条 Markdown 记忆 |
 | `recall` | 按 key 读取记忆 |
-| `recall_recent` | 列出最近更新的记忆 |
 | `search` | 在记忆中关键词搜索 |
-| `list` | 列出记忆 |
+| `list` | 列出记忆，支持按 folder / tag 过滤和 limit 限制 |
 | `list_tags` | 列出所有标签 |
 | `delete` | 删除记忆 |
 | `move` | 移动或重命名记忆 |
