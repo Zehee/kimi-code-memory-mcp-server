@@ -74,3 +74,20 @@ export const ESSENCE_SIZE_LIMIT = 15 * 1024; // 15 KB
  * 一段流畅讨论的完整性。每次搜索可以通过 cluster_gap_seconds 参数覆盖。
  */
 export const DEFAULT_CLUSTER_GAP_SECONDS = 90;
+
+/**
+ * search_context 默认输出预算（字符数）。
+ *
+ * 默认的 normal 模式会尽量把输出控制在这个范围内，避免一次搜索就占满
+ * 上下文窗口。可通过 max_output_chars 参数覆盖，detail: 'full' 时禁用。
+ */
+export const DEFAULT_SEARCH_OUTPUT_BUDGET = 6000;
+
+/** search_context 匹配项摘要最大长度。 */
+export const SEARCH_SNIPPET_MAX_LEN = 240;
+
+/** search_context normal 模式匹配项 user 文本最大长度。 */
+export const SEARCH_USER_MAX_LEN = 200;
+
+/** search_context normal 模式匹配项 agent 文本最大长度。 */
+export const SEARCH_AGENT_MAX_LEN = 400;

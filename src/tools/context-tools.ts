@@ -12,7 +12,7 @@ import type {
 import type { Ctx } from '../types.js';
 import type { ToolDefinition } from './types.js';
 import { adaptHandler } from './types.js';
-import type { TurnReference, WireTurn } from '../context/wire-context.js';
+import type { SearchMatch, TurnReference, WireTurn } from '../context/wire-context.js';
 import {
   getCurrentSessionWirePath,
   findAllWorkspaceSessions,
@@ -25,7 +25,13 @@ import {
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { DEFAULT_CLUSTER_GAP_SECONDS } from '../config.js';
+import {
+  DEFAULT_CLUSTER_GAP_SECONDS,
+  DEFAULT_SEARCH_OUTPUT_BUDGET,
+  SEARCH_USER_MAX_LEN,
+  SEARCH_AGENT_MAX_LEN,
+  SEARCH_SNIPPET_MAX_LEN,
+} from '../config.js';
 import { toolResult } from '../utils/tools.js';
 
 export async function buildWorkspaceContext(
@@ -92,6 +98,97 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
       return args.cluster_gap_seconds;
     }
     return DEFAULT_CLUSTER_GAP_SECONDS;
+  }
+
+  function resolveDetail(args: SearchContextArgs): 'compact' | 'normal' | 'full' {
+    const valid: Array<'compact' | 'normal' | 'full'> = ['compact', 'normal', 'full'];
+    if (typeof args.detail === 'string' && valid.includes(args.detail as 'compact' | 'normal' | 'full')) {
+      return args.detail as 'compact' | 'normal' | 'full';
+    }
+    return 'normal';
+  }
+
+  function resolveMaxOutputChars(args: SearchContextArgs, detail: 'compact' | 'normal' | 'full'): number {
+    if (detail === 'full') return Number.MAX_SAFE_INTEGER;
+    if (typeof args.max_output_chars === 'number' && args.max_output_chars > 0) {
+      return Math.max(500, Math.floor(args.max_output_chars));
+    }
+    return DEFAULT_SEARCH_OUTPUT_BUDGET;
+  }
+
+  function estimateOutputSize(obj: unknown): number {
+    return JSON.stringify(obj).length;
+  }
+
+  interface CompactMatch {
+    sessionId: string;
+    turnId: number;
+    timestamp: string | null;
+    score: number;
+  }
+
+  interface CompactCluster {
+    sessionId: string;
+    hitTurnId: number;
+    memberCount: number;
+    refinedCount: number;
+  }
+
+  interface NormalCluster extends CompactCluster {
+    members: Array<{ sessionId: string; turnId: number }>;
+  }
+
+  function buildCompactMatch(match: SearchMatch): CompactMatch {
+    return {
+      sessionId: match.sessionId,
+      turnId: match.turnId,
+      timestamp: match.timestamp,
+      score: match.score,
+    };
+  }
+
+  function buildNormalCluster(cluster: Cluster, refinedCount: number): NormalCluster {
+    return {
+      sessionId: cluster.sessionId,
+      hitTurnId: cluster.hitTurnId,
+      memberCount: cluster.members.length,
+      refinedCount,
+      members: cluster.members,
+    };
+  }
+
+  function buildCompactCluster(cluster: Cluster, refinedCount: number): CompactCluster {
+    return {
+      sessionId: cluster.sessionId,
+      hitTurnId: cluster.hitTurnId,
+      memberCount: cluster.members.length,
+      refinedCount,
+    };
+  }
+
+  function trimOutputToBudget(
+    result: {
+      matches: SearchMatch[] | CompactMatch[];
+      clusters: NormalCluster[] | CompactCluster[];
+    },
+    maxChars: number,
+  ): void {
+    // Matches are already sorted by score descending; drop lowest-scoring last.
+    while (estimateOutputSize(result) > maxChars && result.matches.length > 0) {
+      result.matches.pop();
+    }
+    while (estimateOutputSize(result) > maxChars && result.clusters.length > 0) {
+      result.clusters.pop();
+    }
+    // If still over budget, strip members arrays from clusters.
+    if (estimateOutputSize(result) > maxChars && result.clusters.length > 0) {
+      result.clusters = result.clusters.map((c) => ({
+        sessionId: c.sessionId,
+        hitTurnId: c.hitTurnId,
+        memberCount: c.memberCount,
+        refinedCount: c.refinedCount,
+      })) as CompactCluster[];
+    }
   }
 
   function groupHitsIntoBlocks(hits: WireTurn[]): WireTurn[][] {
@@ -228,12 +325,26 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
       typeof args.max_cluster_size === 'number' && args.max_cluster_size > 0
         ? Math.max(2, Math.floor(args.max_cluster_size))
         : 15;
-    const { matches, hits, skippedSessionIds } = await searchWireContext(query, {
+    const detail = resolveDetail(args);
+    const maxOutputChars = resolveMaxOutputChars(args, detail);
+
+    const searchOptions: Parameters<typeof searchWireContext>[1] = {
       limit: args.limit,
       dateFrom: args.date_from,
       dateTo: args.date_to,
       refinedManager,
-    });
+    };
+    if (detail === 'full') {
+      searchOptions.userMaxLen = Number.MAX_SAFE_INTEGER;
+      searchOptions.agentMaxLen = Number.MAX_SAFE_INTEGER;
+      searchOptions.snippetMaxLen = SEARCH_SNIPPET_MAX_LEN;
+    } else if (detail === 'normal') {
+      searchOptions.userMaxLen = SEARCH_USER_MAX_LEN;
+      searchOptions.agentMaxLen = SEARCH_AGENT_MAX_LEN;
+      searchOptions.snippetMaxLen = SEARCH_SNIPPET_MAX_LEN;
+    }
+
+    const { matches, hits, skippedSessionIds } = await searchWireContext(query, searchOptions);
 
     // Build clusters around each hit and refine any unrefined turns in them.
     const hitsBySession = new Map<string, WireTurn[]>();
@@ -327,21 +438,47 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
       skippedSessions,
     );
 
+    const normalClusters = clusters.map((c, i) => buildNormalCluster(c, refinedCountByCluster[i] || 0));
+    const compactClusters = clusters.map((c, i) => buildCompactCluster(c, refinedCountByCluster[i] || 0));
+    const compactMatches = matches.map(buildCompactMatch);
+
+    if (detail === 'normal') {
+      const normalResult = {
+        query,
+        totalMatches: matches.length,
+        refinedCount,
+        clusterGapSeconds,
+        maxClusterSize,
+        skippedSessions,
+        matches,
+        clusters: normalClusters,
+      };
+      trimOutputToBudget(normalResult, maxOutputChars);
+      return toolResult(normalResult);
+    }
+
+    if (detail === 'compact') {
+      return toolResult({
+        query,
+        totalMatches: matches.length,
+        refinedCount,
+        clusterGapSeconds,
+        maxClusterSize,
+        skippedSessions,
+        matches: compactMatches,
+        clusters: compactClusters,
+      });
+    }
+
     return toolResult({
       query,
       totalMatches: matches.length,
-      matches,
+      refinedCount,
       clusterGapSeconds,
       maxClusterSize,
       skippedSessions,
-      clusters: clusters.map((c, i) => ({
-        sessionId: c.sessionId,
-        hitTurnId: c.hitTurnId,
-        memberCount: c.members.length,
-        refinedCount: refinedCountByCluster[i] || 0,
-        members: c.members,
-      })),
-      refinedCount,
+      matches,
+      clusters: normalClusters,
     });
   }
 
@@ -478,7 +615,7 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
     {
       name: 'search_context',
       description:
-        'Search conversation rounds across all workspace session wires by keywords and optional date range.',
+        "Search conversation rounds across all workspace session wires by keywords and optional date range. Default detail: 'normal' keeps output within ~6000 chars. Use detail: 'compact' for a quick overview (no match text, no cluster members). Use detail: 'full' when you need full match text and all cluster members.",
       inputSchema: {
         type: 'object',
         properties: {
@@ -495,6 +632,17 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
             type: 'number',
             description:
               '单个 cluster 最多包含的 turn 数，防止连续讨论过长时上下文爆炸。默认 15。',
+          },
+          detail: {
+            type: 'string',
+            enum: ['compact', 'normal', 'full'],
+            description:
+              "Output detail level. 'normal' (default) returns truncated text and cluster members within the output budget. 'compact' returns only references/counts. 'full' disables the budget and returns longer text.",
+          },
+          max_output_chars: {
+            type: 'number',
+            description:
+              'Maximum output length in characters for normal mode. Default 6000. Ignored in compact/full.',
           },
         },
         required: ['query'],

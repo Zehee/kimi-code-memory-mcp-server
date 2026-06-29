@@ -70,6 +70,8 @@ export interface SearchContextArgs {
   limit?: number;
   cluster_gap_seconds?: number;
   max_cluster_size?: number;
+  detail?: 'compact' | 'normal' | 'full';
+  max_output_chars?: number;
 }
 
 export interface ListSearchViewsArgs {

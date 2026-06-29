@@ -14,6 +14,9 @@ import {
   getSessionsRoot,
   DEFAULT_CONTEXT_WINDOW,
   DEFAULT_RECENT_CHANGE_LIMIT,
+  SEARCH_SNIPPET_MAX_LEN,
+  SEARCH_USER_MAX_LEN,
+  SEARCH_AGENT_MAX_LEN,
 } from '../config.js';
 import { computeWorkspaceHash } from '../utils/paths.js';
 import { scoreText, extractSnippet } from '../utils/search.js';
@@ -67,6 +70,9 @@ export interface SearchOptions {
   dateFrom?: string;
   dateTo?: string;
   refinedManager?: RefinedManager;
+  userMaxLen?: number;
+  agentMaxLen?: number;
+  snippetMaxLen?: number;
 }
 
 export interface SearchMatch {
@@ -275,18 +281,21 @@ function buildMatchFromRefined(
     score: number;
   },
   terms: string[],
+  options: SearchOptions = {},
 ): SearchMatch {
   // Refined summaries already condense user intent, tool usage, and agent lead.
   // Use them as the primary content when the original wire is unavailable.
   const snippetSource = [refined.summary, ...refined.facts, ...refined.notes].join('\n');
+  const agentMaxLen = options.agentMaxLen ?? SEARCH_AGENT_MAX_LEN;
+  const snippetMaxLen = options.snippetMaxLen ?? SEARCH_SNIPPET_MAX_LEN;
   return {
     sessionId: refined.sessionId,
     turnId: refined.turnId,
     timestamp: refined.timestamp ?? null,
     score: refined.score,
     user: '',
-    agent: truncate(refined.summary, 2000),
-    snippet: extractSnippet(snippetSource, terms, 240),
+    agent: truncate(refined.summary, agentMaxLen),
+    snippet: extractSnippet(snippetSource, terms, snippetMaxLen),
     actions: [],
   };
 }
@@ -529,6 +538,9 @@ export async function searchWireContext(query: string, options: SearchOptions = 
   const dateFrom = options.dateFrom || null;
   const dateTo = options.dateTo || null;
   const refinedManager = options.refinedManager;
+  const userMaxLen = options.userMaxLen ?? SEARCH_USER_MAX_LEN;
+  const agentMaxLen = options.agentMaxLen ?? SEARCH_AGENT_MAX_LEN;
+  const snippetMaxLen = options.snippetMaxLen ?? SEARCH_SNIPPET_MAX_LEN;
   const terms = query
     .toLowerCase()
     .split(/\s+/)
@@ -568,13 +580,13 @@ export async function searchWireContext(query: string, options: SearchOptions = 
       if (!turns) {
         // The original wire has been removed, but the refined summary still
         // contains the key facts. Return it instead of skipping.
-        matches.push(buildMatchFromRefined(refined, terms));
+        matches.push(buildMatchFromRefined(refined, terms, options));
         continue;
       }
       const turn = turns.find((t) => parseInt(t.turnId, 10) === refined.turnId);
       if (!turn) {
         // The turn is gone from the wire; fall back to the refined record.
-        matches.push(buildMatchFromRefined(refined, terms));
+        matches.push(buildMatchFromRefined(refined, terms, options));
         continue;
       }
 
@@ -588,9 +600,9 @@ export async function searchWireContext(query: string, options: SearchOptions = 
         turnId: refined.turnId,
         timestamp: turn.timestamp || null,
         score: refined.score,
-        user: truncate(turn.user, 1000),
-        agent: truncate(turn.agentText, 2000),
-        snippet: extractSnippet(fullText, terms, 240),
+        user: truncate(turn.user, userMaxLen),
+        agent: truncate(turn.agentText, agentMaxLen),
+        snippet: extractSnippet(fullText, terms, snippetMaxLen),
         actions: turn.actions.map((a) => a.name).filter(Boolean),
       });
       hits.push({ sessionId: refined.sessionId, turn });
@@ -628,9 +640,9 @@ export async function searchWireContext(query: string, options: SearchOptions = 
         turnId: parseInt(turn.turnId, 10),
         timestamp: turn.timestamp || null,
         score,
-        user: truncate(turn.user, 1000),
-        agent: truncate(turn.agentText, 2000),
-        snippet: extractSnippet(fullText, terms, 240),
+        user: truncate(turn.user, userMaxLen),
+        agent: truncate(turn.agentText, agentMaxLen),
+        snippet: extractSnippet(fullText, terms, snippetMaxLen),
         actions: turn.actions.map((a) => a.name).filter(Boolean),
       });
       hits.push({ sessionId: session.sessionId, turn });

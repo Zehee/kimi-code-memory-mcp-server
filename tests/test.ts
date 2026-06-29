@@ -570,6 +570,23 @@ async function testClusterMaxSize() {
   }
 }
 
+async function testSearchContextCompact() {
+  await withClient(async (client) => {
+    const result = parseJsonResult(
+      await client.callTool({
+        name: 'search_context',
+        arguments: { query: 'nonexistent-xyz', detail: 'compact' },
+      }),
+    );
+    assert(Array.isArray(result.matches));
+    assert(Array.isArray(result.clusters));
+    assert.strictEqual(result.refinedCount, 0);
+    for (const cluster of result.clusters) {
+      assert(!('members' in cluster), 'compact clusters should not include members array');
+    }
+  });
+}
+
 async function testSearchContextReturnsRefinedForMissingWire() {
   const tmpSessions = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-code-missing-sessions-'));
   const cwd = process.cwd().replace(/\\/g, '/');
@@ -728,6 +745,7 @@ const tests = [
   testSearchContextUsesRefined,
   testConfigurableSessionsRoot,
   testClusterMaxSize,
+  testSearchContextCompact,
   testSearchContextReturnsRefinedForMissingWire,
   testListSearchViews,
   testLoadWorkspaceContext,
