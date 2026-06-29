@@ -4,7 +4,6 @@
 
 [![CI](https://github.com/Zehee/kimi-code-memory-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/Zehee/kimi-code-memory-mcp-server/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/kimi-code-memory-mcp-server.svg?color=brightgreen)](https://www.npmjs.com/package/kimi-code-memory-mcp-server)
-[![MCP Badge](https://lobehub.com/badge/mcp/Zehee-kimi-code-memory-mcp-server)](https://lobehub.com/mcp/Zehee-kimi-code-memory-mcp-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 A local stdio MCP server that gives [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code) cross-session memory.
