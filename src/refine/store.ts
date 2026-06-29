@@ -186,6 +186,28 @@ export class RefinedStore {
     return matches.slice(0, limit);
   }
 
+  countAll(): number {
+    const row = this.db.prepare('SELECT COUNT(*) AS c FROM refined_turns').get() as { c: number };
+    return row?.c ?? 0;
+  }
+
+  listRecentTurns(limit: number): RefinedTurn[] {
+    const stmt = this.db.prepare(
+      'SELECT * FROM refined_turns ORDER BY timestamp DESC LIMIT ?',
+    );
+    const rows = stmt.all(limit) as Array<{
+      session_id: string;
+      turn_id: number;
+      timestamp: string | null;
+      summary: string;
+      facts: string;
+      notes: string;
+      entities: string;
+      categories: string;
+    }>;
+    return rows.map((r) => rowToTurn(r));
+  }
+
   close(): void {
     this.db.close();
   }

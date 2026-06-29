@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kimi Memory Vis</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-icon">K</div>
+          <div class="brand-text">Memory Vis</div>
+        </div>
+        <nav class="nav">
+          <a class="nav-item active" href="#workspace" data-view="workspace">
+            <span class="nav-icon">◈</span>
+            <span>Workspace</span>
+          </a>
+          <a class="nav-item" href="#themes" data-view="themes">
+            <span class="nav-icon">◉</span>
+            <span>Themes</span>
+          </a>
+          <a class="nav-item" href="#decisions" data-view="decisions">
+            <span class="nav-icon">◆</span>
+            <span>Decisions</span>
+          </a>
+          <a class="nav-item" href="#memories" data-view="memories">
+            <span class="nav-icon">▣</span>
+            <span>Memories</span>
+          </a>
+        </nav>
+        <div class="sidebar-footer">
+          <button id="sync-btn" class="btn btn-ghost" type="button">Sync index</button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <button id="menu-toggle" class="menu-toggle" type="button" aria-label="Toggle menu">☰</button>
+          <div class="workspace-id" id="workspace-id">–</div>
+        </header>
+
+        <div class="content">
+          <section id="view-workspace" class="view view-active">
+            <h1 class="page-title">Workspace</h1>
+            <div class="stats-grid" id="stats-grid"></div>
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">Essence</h2>
+                <button id="save-essence" class="btn btn-primary" type="button">Save</button>
+              </div>
+              <textarea id="essence-editor" class="essence-editor" placeholder="Workspace essence is empty. Write a short constitution here..."></textarea>
+              <div id="essence-status" class="status"></div>
+            </div>
+          </section>
+
+          <section id="view-themes" class="view">
+            <h1 class="page-title">Themes</h1>
+            <div id="themes-grid" class="themes-grid"></div>
+          </section>
+
+          <section id="view-decisions" class="view">
+            <h1 class="page-title">Recent Decisions</h1>
+            <div id="decisions-list" class="decisions-list"></div>
+          </section>
+
+          <section id="view-memories" class="view">
+            <h1 class="page-title">Memories</h1>
+            <div class="memories-layout">
+              <div id="memory-tree" class="memory-tree"></div>
+              <div id="memory-preview" class="memory-preview">
+                <div class="empty-state">Select a memory to view its content.</div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <div id="modal" class="modal" aria-hidden="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="modal-title" class="modal-title">Theme</h2>
+          <button id="modal-close" class="modal-close" type="button" aria-label="Close">×</button>
+        </div>
+        <div id="modal-body" class="modal-body"></div>
+      </div>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

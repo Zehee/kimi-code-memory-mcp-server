@@ -7,7 +7,8 @@
   "type": "module",
   "bin": {
     "kimi-code-memory-mcp-server": "dist/server.js",
-    "kimi-memory-setup": "dist/setup-cli.js"
+    "kimi-memory-setup": "dist/setup-cli.js",
+    "kimi-memory-vis": "dist/vis-cli.js"
   },
   "files": [
     "dist/",
@@ -23,10 +24,11 @@
   ],
   "scripts": {
     "sync-version": "node scripts/sync-version.mjs",
-    "build": "npm run sync-version && tsc",
+    "copy-vis-static": "node scripts/copy-vis-static.mjs",
+    "build": "npm run sync-version && tsc && npm run copy-vis-static",
     "dev": "tsx src/server.ts",
     "start": "node dist/server.js",
-    "test": "tsx tests/test.ts",
+    "test": "tsx tests/test.ts && tsx tests/vis.test.ts",
     "test:unit": "tsx tests/unit/run-all.ts",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix",
@@ -54,9 +56,12 @@
   },
   "homepage": "https://github.com/Zehee/kimi-code-memory-mcp-server#readme",
   "dependencies": {
+    "@hono/node-server": "^2.0.6",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@types/better-sqlite3": "^7.6.13",
-    "better-sqlite3": "^12.11.1"
+    "better-sqlite3": "^12.11.1",
+    "hono": "^4.12.27",
+    "open": "^11.0.0"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",

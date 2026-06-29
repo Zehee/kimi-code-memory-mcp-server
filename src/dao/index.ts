@@ -15,7 +15,7 @@ import { FALLBACK_FOLDER_COMMENTS } from './constants.js';
 import { IndexStore } from './index-store.js';
 import { IndexReconciler } from './index-reconciler.js';
 import { IndexCatalog } from './index-catalog.js';
-import { MemoryIndexTreeRenderer } from './memory-tree-renderer.js';
+import { MemoryIndexTreeRenderer, type TreeNode } from './memory-tree-renderer.js';
 
 export * from './constants.js';
 export type { TreeNode } from './memory-tree-renderer.js';
@@ -149,6 +149,10 @@ export class IndexDao {
 
   listRefs(folder?: string): { key: string; folder: string; title: string; tags: string[] }[] {
     return this.catalog.listRefs(folder);
+  }
+
+  buildMemoryTreeData(): TreeNode {
+    return this.catalog.buildMemoryTreeData();
   }
 
   buildMemoryIndexTree(recentLimit = 5): string {

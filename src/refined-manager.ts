@@ -61,6 +61,14 @@ export class RefinedManager {
     return this.store.searchRefinedTurns(options);
   }
 
+  countAll(): number {
+    return this.store.countAll();
+  }
+
+  listRecentTurns(limit: number): RefinedTurn[] {
+    return this.store.listRecentTurns(limit);
+  }
+
   close(): void {
     this.store.close();
   }
