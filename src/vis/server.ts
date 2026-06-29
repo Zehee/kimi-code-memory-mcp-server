@@ -127,7 +127,7 @@ export function createApp(ctx: Ctx): Hono {
     const indexPath = path.join(staticRoot, 'index.html');
     const html = fs.existsSync(indexPath)
       ? fs.readFileSync(indexPath, 'utf8')
-      : '<h1>kimi-memory-vis</h1><p>Static files not found. Run npm run build first.</p>';
+      : '<!doctype html><html><head><title>Memory Vis</title></head><body><h1>kimi-memory-vis</h1><p>Static files not found. Run npm run build first.</p></body></html>';
     return c.html(html);
   });
 
