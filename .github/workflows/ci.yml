@@ -30,5 +30,14 @@ jobs:
       - name: Run linter
         run: npm run lint
 
+      - name: Run typecheck
+        run: npm run typecheck
+
+      - name: Run build
+        run: npm run build
+
+      - name: Run unit tests
+        run: npm run test:unit
+
       - name: Run tests
         run: npm test

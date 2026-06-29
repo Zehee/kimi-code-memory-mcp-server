@@ -112,6 +112,9 @@ export function createApp(ctx: Ctx): Hono {
   });
 
   const staticRoot = getStaticRoot();
+  if (!fs.existsSync(staticRoot)) {
+    fs.mkdirSync(staticRoot, { recursive: true });
+  }
   app.use(
     '/*',
     serveStatic({
