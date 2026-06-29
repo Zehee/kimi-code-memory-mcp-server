@@ -256,7 +256,30 @@ You can override the storage root with the `MEMORY_STORE_ROOT` environment varia
 | `tag_theme` | Associate a turn or memory with a theme |
 | `trace_theme` | Trace a theme's evolution |
 | `list_themes` | List themes |
+| `open_memory_dashboard` | Open the memory dashboard in the browser |
 | `refine_session_turns` | Generate refined turn summaries |
+
+## Dashboard
+
+A standalone web dashboard is available to visualize workspace memory, theme timelines, and recent decisions:
+
+```bash
+npx kimi-memory-vis
+```
+
+It starts on `http://127.0.0.1:58628` and opens the browser automatically.
+
+To auto-start the dashboard when the MCP server starts:
+
+```bash
+export KIMI_MEMORY_AUTO_VIS=1
+```
+
+Or ask the Agent to open it:
+
+```json
+{ "name": "open_memory_dashboard" }
+```
 
 ## Development
 

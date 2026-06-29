@@ -29,6 +29,7 @@ import { prompts, getPrompt } from './prompts/index.js';
 import { createResources } from './resources/index.js';
 import type { Ctx } from './types.js';
 import { VERSION } from './version.js';
+import { maybeStartVisServer, stopVisServer } from './vis/auto-start.js';
 
 const cwd = process.cwd().replace(/\\/g, '/');
 const workspaceId = computeWorkspaceId(cwd);
@@ -109,7 +110,24 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) =>
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
+
+  const visResult = await maybeStartVisServer(ctx);
+  if (visResult.started && visResult.url) {
+    process.stderr.write(`[kimi-memory] vis dashboard ready at ${visResult.url}\n`);
+  } else if (visResult.error) {
+    process.stderr.write(`[kimi-memory] vis dashboard failed to start: ${visResult.error}\n`);
+  }
 }
+
+process.on('SIGINT', () => {
+  stopVisServer();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  stopVisServer();
+  process.exit(0);
+});
 
 main().catch((err) => {
   const message = err instanceof Error ? err.message : String(err);

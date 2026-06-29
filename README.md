@@ -279,6 +279,35 @@ Agent：[调用 mcp__kimi-memory__tag_theme] theme=cache-design
 | `theme://<theme>` | 读取某个主题的关联摘要（Markdown 格式） |
 | `essence://essence` | 读取工作区精要 `essence/essence.md` |
 
+## 可视化仪表盘
+
+提供独立的 Web 仪表盘，用于查看工作区记忆、主题时间线和近期决策：
+
+```bash
+npx kimi-memory-vis
+```
+
+启动后会自动打开浏览器，默认地址 `http://127.0.0.1:58628`。
+
+也可以在 MCP 服务器启动时自动启动仪表盘：
+
+```bash
+export KIMI_MEMORY_AUTO_VIS=1
+```
+
+或者在会话中让 Agent 打开：
+
+```json
+{ "name": "open_memory_dashboard" }
+```
+
+仪表盘支持：
+
+- 工作区概览与 `essence.md` 行内编辑
+- 主题时间线浏览
+- 近期决策列表
+- 显式记忆目录浏览
+
 ## 开发
 
 ```bash

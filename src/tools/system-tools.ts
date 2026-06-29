@@ -15,6 +15,7 @@ import { atomicWriteFile } from '../utils/paths.js';
 import { toTitle } from '../utils/validation.js';
 import { toolResult } from '../utils/tools.js';
 import { safeParseFile, fileStats } from '../utils/file-helpers.js';
+import { maybeStartVisServer, getVisUrl } from '../vis/auto-start.js';
 
 const ESSENCE = {
   folder: 'essence',
@@ -187,12 +188,38 @@ export function createSystemTools(ctx: Ctx): ToolDefinition[] {
     });
   }
 
+  async function handleOpenDashboard() {
+    let url = getVisUrl();
+    if (!url) {
+      const result = await maybeStartVisServer(ctx);
+      if (!result.started || !result.url) {
+        return toolResult(
+          { success: false, error: result.error || 'Failed to start dashboard' },
+          true,
+        );
+      }
+      url = result.url;
+    }
+
+    const { default: openBrowser } = await import('open');
+    await openBrowser(url);
+
+    return toolResult({ success: true, url });
+  }
+
   const tools: ToolDefinition[] = [
     {
       name: 'get_current_workspace',
       description: 'Return the current cwd, workspace id and store path.',
       inputSchema: { type: 'object', properties: {} },
       handler: adaptHandler(handleGetCurrentWorkspace),
+    },
+    {
+      name: 'open_memory_dashboard',
+      description:
+        'Opens the memory dashboard in the default browser. Starts the dashboard server if it is not already running.',
+      inputSchema: { type: 'object', properties: {} },
+      handler: adaptHandler(handleOpenDashboard),
     },
     {
       name: 'organize_memories',
