@@ -527,7 +527,7 @@ async function testClusterMaxSize() {
   const turns: Array<{ user: string; agent: string; timestamp: string }> = [];
   for (let i = 0; i < 10; i++) {
     turns.push({
-      user: i === 5 ? 'search keyword here' : `turn ${i}`,
+      user: i === 5 ? 'cluster keyword here' : `turn ${i}`,
       agent: `agent response ${i}`,
       timestamp: `2026-06-24T12:00:0${i}.000Z`,
     });
@@ -538,10 +538,20 @@ async function testClusterMaxSize() {
   process.env.MEMORY_SESSIONS_ROOT = tmpSessions;
   try {
     await withClient(async (client) => {
+      // Refine the target session first so search_context can build clusters from
+      // its wire, instead of being hijacked by stale refined records from earlier tests.
+      const refineResult = parseJsonResult(
+        await client.callTool({
+          name: 'refine_session_turns',
+          arguments: { sessionId: 'session_cluster' },
+        }),
+      );
+      assert(refineResult.success, 'refine_session_turns should succeed');
+
       const result = parseJsonResult(
         await client.callTool({
           name: 'search_context',
-          arguments: { query: 'search keyword', max_cluster_size: 3 },
+          arguments: { query: 'cluster keyword', max_cluster_size: 3 },
         }),
       );
       assert(Array.isArray(result.clusters));

@@ -4,9 +4,10 @@
 
 import fs from 'fs';
 import path from 'path';
-import type { Frontmatter, ParsedFrontmatter } from '../utils/frontmatter.js';
-import { parseFrontmatter, stringifyFrontmatter } from '../utils/frontmatter.js';
+import type { Frontmatter } from '../utils/frontmatter.js';
+import { stringifyFrontmatter } from '../utils/frontmatter.js';
 import { safeResolve, atomicWriteFile } from '../utils/paths.js';
+import { safeParseFile } from '../utils/file-helpers.js';
 
 export interface MemoryReadResult extends Frontmatter {
   content: string;
@@ -16,15 +17,6 @@ export interface MemoryReadResult extends Frontmatter {
 
 export interface WriteOptions {
   title?: string;
-}
-
-function safeParseFile(filePath: string): ParsedFrontmatter | null {
-  try {
-    const text = fs.readFileSync(filePath, 'utf8');
-    return parseFrontmatter(text) || { frontmatter: {}, body: text };
-  } catch {
-    return null;
-  }
 }
 
 export class MemoryStore {

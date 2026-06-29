@@ -10,6 +10,8 @@ import type {
   SearchContextArgs,
 } from '../types.js';
 import type { Ctx } from '../types.js';
+import type { ToolDefinition } from './types.js';
+import { adaptHandler } from './types.js';
 import type { TurnReference, WireTurn } from '../context/wire-context.js';
 import {
   getCurrentSessionWirePath,
@@ -24,16 +26,56 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { DEFAULT_CLUSTER_GAP_SECONDS } from '../config.js';
+import { toolResult } from '../utils/tools.js';
 
-function toolResult(data: unknown, isError = false) {
+export async function buildWorkspaceContext(
+  ctx: Ctx,
+  args: LoadWorkspaceContextArgs = {},
+): Promise<{
+  workspace: { cwd: string; workspaceId: string; storePath: string };
+  recentContext: {
+    sessionId: string;
+    totalTurns: number;
+    detailedRounds: unknown[];
+    summaryRounds: unknown[];
+    compactionSummaries: unknown[];
+  } | null;
+}> {
+  const { cwd, workspaceId, storeRoot } = ctx;
+  const overrides: { detailedRounds?: number; summaryRounds?: number } = {};
+  if (typeof args.detailed_rounds === 'number') {
+    overrides.detailedRounds = Math.max(0, Math.floor(args.detailed_rounds));
+  }
+  if (typeof args.summary_rounds === 'number') {
+    overrides.summaryRounds = Math.max(0, Math.floor(args.summary_rounds));
+  }
+
+  const session = getCurrentSessionWirePath();
+  let recentContext = null;
+  if (session) {
+    const { turns, compactionSummaries } = await parseWireFile(session.wire);
+    const window = buildContextWindow(turns, overrides);
+    recentContext = {
+      sessionId: session.sessionId,
+      totalTurns: window.totalTurns,
+      detailedRounds: window.detailedRounds,
+      summaryRounds: window.summaryRounds,
+      compactionSummaries: compactionSummaries.slice(-3),
+    };
+  }
+
   return {
-    content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-    isError,
+    workspace: {
+      cwd,
+      workspaceId,
+      storePath: storeRoot,
+    },
+    recentContext,
   };
 }
 
-export function createContextTools(ctx: Ctx) {
-  const { cwd, workspaceId, storeRoot, refinedManager } = ctx;
+export function createContextTools(ctx: Ctx): ToolDefinition[] {
+  const { storeRoot, refinedManager } = ctx;
 
   interface Cluster {
     sessionId: string;
@@ -144,41 +186,8 @@ export function createContextTools(ctx: Ctx) {
     };
   }
 
-  async function buildWorkspaceContext(args: LoadWorkspaceContextArgs = {}) {
-    const overrides: { detailedRounds?: number; summaryRounds?: number } = {};
-    if (typeof args.detailed_rounds === 'number') {
-      overrides.detailedRounds = Math.max(0, Math.floor(args.detailed_rounds));
-    }
-    if (typeof args.summary_rounds === 'number') {
-      overrides.summaryRounds = Math.max(0, Math.floor(args.summary_rounds));
-    }
-
-    const session = getCurrentSessionWirePath();
-    let recentContext = null;
-    if (session) {
-      const { turns, compactionSummaries } = await parseWireFile(session.wire);
-      const window = buildContextWindow(turns, overrides);
-      recentContext = {
-        sessionId: session.sessionId,
-        totalTurns: window.totalTurns,
-        detailedRounds: window.detailedRounds,
-        summaryRounds: window.summaryRounds,
-        compactionSummaries: compactionSummaries.slice(-3),
-      };
-    }
-
-    return {
-      workspace: {
-        cwd,
-        workspaceId,
-        storePath: storeRoot,
-      },
-      recentContext,
-    };
-  }
-
   function handleLoadWorkspaceContext(args: LoadWorkspaceContextArgs) {
-    return buildWorkspaceContext(args).then((data) => toolResult(data));
+    return buildWorkspaceContext(ctx, args).then((data) => toolResult(data));
   }
 
   async function handleLoadMoreContext(args: LoadMoreContextArgs) {
@@ -307,7 +316,16 @@ export function createContextTools(ctx: Ctx) {
     }
 
     // Save the search view (only references, no content).
-    saveSearchView(query, clusters, refinedCountByCluster, matches.length, refinedCount, clusterGapSeconds, maxClusterSize, skippedSessions);
+    saveSearchView(
+      query,
+      clusters,
+      refinedCountByCluster,
+      matches.length,
+      refinedCount,
+      clusterGapSeconds,
+      maxClusterSize,
+      skippedSessions,
+    );
 
     return toolResult({
       query,
@@ -417,12 +435,110 @@ export function createContextTools(ctx: Ctx) {
     });
   }
 
-  return {
-    buildWorkspaceContext,
-    handleLoadWorkspaceContext,
-    handleLoadMoreContext,
-    handleSearchContext,
-    handleListSearchViews,
-    handleLoadTurnContext,
-  };
+  const tools: ToolDefinition[] = [
+    {
+      name: 'load_workspace_context',
+      description:
+        'Load the workspace context for session resumption: recent conversation parsed from the active wire.jsonl.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          detailed_rounds: {
+            type: 'number',
+            description: 'Number of most recent rounds to return in full detail.',
+          },
+          summary_rounds: {
+            type: 'number',
+            description: 'Number of preceding rounds to return as summaries.',
+          },
+        },
+      },
+      handler: adaptHandler(handleLoadWorkspaceContext),
+    },
+    {
+      name: 'load_more_context',
+      description:
+        'Load older conversation rounds from the active wire.jsonl, summarized, before a given turn id.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          before_turn_id: {
+            type: 'number',
+            description: 'Exclusive turn id; return rounds older than this.',
+          },
+          limit: {
+            type: 'number',
+            description: 'Maximum number of older rounds to return.',
+          },
+        },
+        required: ['before_turn_id'],
+      },
+      handler: adaptHandler(handleLoadMoreContext),
+    },
+    {
+      name: 'search_context',
+      description:
+        'Search conversation rounds across all workspace session wires by keywords and optional date range.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Keywords to search for in conversation rounds' },
+          date_from: { type: 'string', description: 'Optional start date in YYYY-MM-DD format' },
+          date_to: { type: 'string', description: 'Optional end date in YYYY-MM-DD format' },
+          limit: { type: 'number', description: 'Maximum number of matching rounds to return' },
+          cluster_gap_seconds: {
+            type: 'number',
+            description:
+              '相邻 turn 被归为同一「簇」的最大时间间隔（秒）。一个簇代表一段连续的讨论或决策。默认 90 秒；协作节奏慢可适当调大，话题切换快则调小。',
+          },
+          max_cluster_size: {
+            type: 'number',
+            description:
+              '单个 cluster 最多包含的 turn 数，防止连续讨论过长时上下文爆炸。默认 15。',
+          },
+        },
+        required: ['query'],
+      },
+      handler: adaptHandler(handleSearchContext),
+    },
+    {
+      name: 'list_search_views',
+      description:
+        'List saved search views. Each view records the clusters discovered by a previous search_context call. Use these views as candidate sets before creating or extending a theme.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number', description: 'Maximum number of recent views to return' },
+        },
+      },
+      handler: adaptHandler(handleListSearchViews),
+    },
+    {
+      name: 'load_turn_context',
+      description:
+        'Load the full detailed content of specific conversation turns by sessionId and turnId.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          references: {
+            type: 'array',
+            description:
+              'Array of { sessionId, turnId } references identifying the conversation rounds to load',
+            items: {
+              type: 'object',
+              properties: {
+                sessionId: { type: 'string', description: 'Session identifier' },
+                turnId: { type: 'number', description: 'Turn identifier within the session' },
+              },
+              required: ['sessionId', 'turnId'],
+            },
+          },
+        },
+        required: ['references'],
+      },
+      handler: adaptHandler(handleLoadTurnContext),
+    },
+  ];
+
+  return tools;
 }

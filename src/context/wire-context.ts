@@ -16,6 +16,7 @@ import {
   DEFAULT_RECENT_CHANGE_LIMIT,
 } from '../config.js';
 import { computeWorkspaceHash } from '../utils/paths.js';
+import { scoreText, extractSnippet } from '../utils/search.js';
 import type { RefinedManager } from '../refined-manager.js';
 
 export interface McpConfig {
@@ -515,40 +516,6 @@ export function loadMoreRounds(
   return selected.map(toSummaryRound);
 }
 
-function scoreRound(turn: WireTurn, terms: string[]): number {
-  const haystack = `${turn.user}\n${turn.agentText}\n${turn.actions
-    .map((a) => a.name)
-    .join(' ')}`.toLowerCase();
-  let score = 0;
-  for (const term of terms) {
-    const re = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-    const matches = haystack.match(re);
-    if (matches) score += matches.length;
-  }
-  return score;
-}
-
-function extractSnippet(text: string, terms: string[], maxLen = 200): string {
-  if (!terms.length) return truncate(text, maxLen);
-  const lower = text.toLowerCase();
-  let bestPos = -1;
-  let bestTermLen = 0;
-  for (const term of terms) {
-    const idx = lower.indexOf(term);
-    if (idx !== -1 && term.length > bestTermLen) {
-      bestPos = idx;
-      bestTermLen = term.length;
-    }
-  }
-  if (bestPos === -1) return truncate(text, maxLen);
-  const start = Math.max(0, bestPos - 60);
-  const end = Math.min(text.length, bestPos + bestTermLen + 60);
-  let snippet = text.slice(start, end);
-  if (start > 0) snippet = '...' + snippet;
-  if (end < text.length) snippet = snippet + '...';
-  return snippet;
-}
-
 /**
  * Search across all workspace session wires for rounds matching the query.
  *
@@ -651,7 +618,8 @@ export async function searchWireContext(query: string, options: SearchOptions = 
       if (dateFrom && roundDate && roundDate < dateFrom) continue;
       if (dateTo && roundDate && roundDate > dateTo) continue;
 
-      const score = scoreRound(turn, terms);
+      const haystack = `${turn.user}\n${turn.agentText}\n${turn.actions.map((a) => a.name).join(' ')}`;
+      const score = scoreText(haystack, terms);
       if (score === 0) continue;
 
       const fullText = `${turn.user}\n${turn.agentText}`;

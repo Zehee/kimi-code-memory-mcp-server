@@ -5,27 +5,14 @@
 import fs from 'fs';
 import path from 'path';
 import type { Ctx, RefineSessionTurnsArgs, TagThemeArgs, TraceThemeArgs } from '../types.js';
+import type { ToolDefinition } from './types.js';
+import { adaptHandler } from './types.js';
 import { sanitizeFolder, sanitizeKey, toTitle } from '../utils/validation.js';
-import { parseFrontmatter } from '../utils/frontmatter.js';
+import { toolResult } from '../utils/tools.js';
+import { safeParseFile } from '../utils/file-helpers.js';
 import { findAllWorkspaceSessions, parseWireFile } from '../context/wire-context.js';
 
-function toolResult(data: unknown, isError = false) {
-  return {
-    content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-    isError,
-  };
-}
-
-function safeParseFile(filePath: string) {
-  try {
-    const text = fs.readFileSync(filePath, 'utf8');
-    return parseFrontmatter(text) || { frontmatter: {}, body: text };
-  } catch {
-    return null;
-  }
-}
-
-export function createThemeTools(ctx: Ctx) {
+export function createThemeTools(ctx: Ctx): ToolDefinition[] {
   const { storeRoot, themeManager, refinedManager } = ctx;
 
   async function handleTagTheme(args: TagThemeArgs) {
@@ -218,10 +205,83 @@ export function createThemeTools(ctx: Ctx) {
     });
   }
 
-  return {
-    handleTagTheme,
-    handleTraceTheme,
-    handleListThemes,
-    handleRefineSessionTurns,
-  };
+  const tools: ToolDefinition[] = [
+    {
+      name: 'tag_theme',
+      description:
+        '仔细分析 turn 内容与 theme 确定相关后，将 turn 挂载到 theme。禁止仅凭关键词匹配挂载；必须确认内容 genuinely belongs to the theme 才可关联。如果 theme 不存在会自动创建。',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          theme: {
+            type: 'string',
+            description: 'Theme identifier. A theme is a semantic group, not a keyword tag.',
+          },
+          sessionId: {
+            type: 'string',
+            description: 'Optional session id of a conversation turn to attach',
+          },
+          turnId: { type: 'number', description: 'Optional turn id within the session' },
+          memoryKey: { type: 'string', description: 'Optional memory key to attach' },
+          memoryFolder: { type: 'string', description: 'Optional memory folder (default: memory)' },
+          memoryTitle: {
+            type: 'string',
+            description: 'Optional display title for the memory reference',
+          },
+        },
+        required: ['theme'],
+      },
+      handler: adaptHandler(handleTagTheme),
+    },
+    {
+      name: 'trace_theme',
+      description:
+        'Trace the evolution of a theme across sessions and memories. Returns associated turns and memories sorted by time.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          theme: { type: 'string', description: 'Theme identifier' },
+          includeTurnContent: {
+            type: 'boolean',
+            description: 'If true, load full turn content from wire.jsonl (default: false)',
+          },
+        },
+        required: ['theme'],
+      },
+      handler: adaptHandler(handleTraceTheme),
+    },
+    {
+      name: 'list_themes',
+      description: 'List all theme identifiers stored in the current workspace.',
+      inputSchema: { type: 'object', properties: {} },
+      handler: adaptHandler(handleListThemes),
+    },
+    {
+      name: 'refine_session_turns',
+      description:
+        'Read a session wire.jsonl and generate Refined Turn Summaries. Output is written to refined/<sessionId>.jsonl.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sessionId: {
+            type: 'string',
+            description: 'Session identifier (default: current session)',
+          },
+          session_id: { type: 'string', description: 'Alias for sessionId' },
+          turnIds: {
+            type: 'array',
+            items: { type: 'number' },
+            description: 'Optional list of turnIds to refine',
+          },
+          limit: {
+            type: 'number',
+            description: 'Optional limit: refine only the most recent N turns',
+          },
+        },
+      },
+      handler: adaptHandler(handleRefineSessionTurns),
+    },
+  ];
+
+  return tools;
 }

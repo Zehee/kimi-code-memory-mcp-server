@@ -27,6 +27,7 @@
     "dev": "tsx src/server.ts",
     "start": "node dist/server.js",
     "test": "tsx tests/test.ts",
+    "test:unit": "tsx tests/unit/run-all.ts",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix",
     "format": "prettier --write src tests",

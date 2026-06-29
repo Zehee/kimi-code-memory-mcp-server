@@ -13,34 +13,13 @@ import type {
   DeleteArgs,
   MoveArgs,
 } from '../types.js';
+import type { ToolDefinition } from './types.js';
+import { adaptHandler } from './types.js';
 import { sanitizeFolder, sanitizeKey, toTitle } from '../utils/validation.js';
-import { parseFrontmatter } from '../utils/frontmatter.js';
+import { toolResult } from '../utils/tools.js';
+import { safeParseFile, fileStats } from '../utils/file-helpers.js';
 
-function toolResult(data: unknown, isError = false) {
-  return {
-    content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-    isError,
-  };
-}
-
-function safeParseFile(filePath: string) {
-  try {
-    const text = fs.readFileSync(filePath, 'utf8');
-    return parseFrontmatter(text) || { frontmatter: {}, body: text };
-  } catch {
-    return null;
-  }
-}
-
-function fileStats(filePath: string) {
-  try {
-    return fs.statSync(filePath);
-  } catch {
-    return null;
-  }
-}
-
-export function createMemoryTools(ctx: Ctx) {
+export function createMemoryTools(ctx: Ctx): ToolDefinition[] {
   const { storeRoot, indexDao, themeManager, memoryStore } = ctx;
 
   function resolveFilePath(folder: string, key: string) {
@@ -198,7 +177,7 @@ export function createMemoryTools(ctx: Ctx) {
         folder,
         title: value.title || toTitle(path.basename(key, '.md')),
         tags: Array.isArray(value.tags) ? value.tags : [],
-        updatedAt: stats ? stats.mtime.toISOString() : new Date().toISOString(),
+        updatedAt: stats ? stats.modifiedAt : new Date().toISOString(),
         size: stats ? stats.size : 0,
       });
     }
@@ -300,13 +279,114 @@ export function createMemoryTools(ctx: Ctx) {
     return toolResult({ success: true, key, newKey, fromFolder: folder, toFolder });
   }
 
-  return {
-    handleRemember,
-    handleRecall,
-    handleSearch,
-    handleListTags,
-    handleList,
-    handleDelete,
-    handleMove,
-  };
+  const tools: ToolDefinition[] = [
+    {
+      name: 'remember',
+      description: 'Write or overwrite a memory entry as a Markdown file with YAML frontmatter.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          key: { type: 'string', description: 'Unique identifier used as filename base' },
+          content: {
+            type: 'string',
+            description:
+              'Markdown body content. For decisions include rationale, impact, and related files. ' +
+              'For rules include scope and consequence. For knowledge include scenario and related files/interfaces. ' +
+              'For references include URL and relevance. Example decision: "# Use SQLite\\n\\n## Rationale\\n- Single-file deployment\\n- No extra service\\n\\n## Impact\\nAll cache reads/writes go through src/cache.js.\\n\\n## Related files\\nsrc/cache.js, docs/cache.md"',
+          },
+          folder: {
+            type: 'string',
+            description: 'Subfolder under the workspace (default: memory)',
+          },
+          tags: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Tags stored in YAML frontmatter',
+          },
+          themes: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional theme names to associate with this memory',
+          },
+        },
+        required: ['key'],
+      },
+      handler: adaptHandler(handleRemember),
+    },
+    {
+      name: 'recall',
+      description: 'Read a memory entry by key and folder.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          key: { type: 'string', description: 'Memory key' },
+          folder: { type: 'string', description: 'Subfolder (default: memory)' },
+        },
+        required: ['key'],
+      },
+      handler: adaptHandler(handleRecall),
+    },
+    {
+      name: 'search',
+      description: 'Case-insensitive keyword search across memory titles and contents.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Keyword to search' },
+          folder: { type: 'string', description: 'Limit search to a subfolder' },
+        },
+        required: ['query'],
+      },
+      handler: adaptHandler(handleSearch),
+    },
+    {
+      name: 'list_tags',
+      description: 'List all tags used in the current workspace.',
+      inputSchema: { type: 'object', properties: {} },
+      handler: adaptHandler(handleListTags),
+    },
+    {
+      name: 'list',
+      description: 'List memory entries in the workspace, sorted by most recently updated.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          folder: { type: 'string', description: 'Filter to a specific subfolder' },
+          limit: { type: 'number', description: 'Maximum number of entries to return (default: all)' },
+          tag: { type: 'string', description: 'Filter to entries containing this tag' },
+        },
+      },
+      handler: adaptHandler(handleList),
+    },
+    {
+      name: 'delete',
+      description: 'Delete a memory entry by key and folder.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          key: { type: 'string', description: 'Memory key' },
+          folder: { type: 'string', description: 'Subfolder (default: memory)' },
+        },
+        required: ['key'],
+      },
+      handler: adaptHandler(handleDelete),
+    },
+    {
+      name: 'move',
+      description: 'Move a memory entry to another folder, optionally renaming it.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          key: { type: 'string', description: 'Memory key' },
+          folder: { type: 'string', description: 'Source subfolder (default: memory)' },
+          toFolder: { type: 'string', description: 'Destination subfolder' },
+          newKey: { type: 'string', description: 'Optional new key to rename the memory' },
+        },
+        required: ['key', 'toFolder'],
+      },
+      handler: adaptHandler(handleMove),
+    },
+  ];
+
+  return tools;
 }

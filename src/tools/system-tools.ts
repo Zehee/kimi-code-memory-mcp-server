@@ -5,35 +5,16 @@
 import fs from 'fs';
 import path from 'path';
 import type { Ctx, OrganizeArgs, SyncWorkspaceIndexArgs } from '../types.js';
+import type { ToolDefinition } from './types.js';
+import { adaptHandler } from './types.js';
 import { ESSENCE_SIZE_LIMIT } from '../config.js';
 import { loadMcpConfig } from '../context/wire-context.js';
-import { parseFrontmatter, stringifyFrontmatter } from '../utils/frontmatter.js';
+import { buildWorkspaceContext } from './context-tools.js';
+import { stringifyFrontmatter } from '../utils/frontmatter.js';
 import { atomicWriteFile } from '../utils/paths.js';
 import { toTitle } from '../utils/validation.js';
-
-function toolResult(data: unknown, isError = false) {
-  return {
-    content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-    isError,
-  };
-}
-
-function safeParseFile(filePath: string) {
-  try {
-    const text = fs.readFileSync(filePath, 'utf8');
-    return parseFrontmatter(text) || { frontmatter: {}, body: text };
-  } catch {
-    return null;
-  }
-}
-
-function fileStats(filePath: string) {
-  try {
-    return fs.statSync(filePath);
-  } catch {
-    return null;
-  }
-}
+import { toolResult } from '../utils/tools.js';
+import { safeParseFile, fileStats } from '../utils/file-helpers.js';
 
 const ESSENCE = {
   folder: 'essence',
@@ -52,7 +33,7 @@ const ESSENCE = {
   ].join('\n'),
 };
 
-export function createSystemTools(ctx: Ctx) {
+export function createSystemTools(ctx: Ctx): ToolDefinition[] {
   const { cwd, workspaceId, storeRoot, indexDao } = ctx;
 
   function loadEssenceFile() {
@@ -185,10 +166,7 @@ export function createSystemTools(ctx: Ctx) {
   }) {
     await indexDao.reconcileIndex();
 
-    const { buildWorkspaceContext } = await import('./context-tools.js').then((m) =>
-      m.createContextTools(ctx),
-    );
-    const contextData = await buildWorkspaceContext(args);
+    const contextData = await buildWorkspaceContext(ctx, args);
     const existingEssence = loadEssenceFile();
     const config = loadMcpConfig();
 
@@ -209,10 +187,70 @@ export function createSystemTools(ctx: Ctx) {
     });
   }
 
-  return {
-    handleGetCurrentWorkspace,
-    handleOrganize,
-    handleSyncWorkspaceIndex,
-    handleBootstrapWorkspace,
-  };
+  const tools: ToolDefinition[] = [
+    {
+      name: 'get_current_workspace',
+      description: 'Return the current cwd, workspace id and store path.',
+      inputSchema: { type: 'object', properties: {} },
+      handler: adaptHandler(handleGetCurrentWorkspace),
+    },
+    {
+      name: 'organize_memories',
+      description:
+        'Two-stage workspace memory organizer. Empty call returns existing essence + pending memory files + rules. Call with content to store the organized essence.md.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          content: {
+            type: 'string',
+            description:
+              'Organized essence Markdown body. Key facts should cite sources inline using `> 来源：memory/<folder>/key`.',
+          },
+          sources: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Optional list of memory/ keys incorporated into the essence, returned in the tool result for tracking.',
+          },
+        },
+      },
+      handler: adaptHandler(handleOrganize),
+    },
+    {
+      name: 'sync_workspace_index',
+      description:
+        'Reconciles index.json with the filesystem. Empty call scans and reports mismatches. Call with folderComments to set folder descriptions.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          folderComments: {
+            type: 'object',
+            description: 'Optional map of folder paths to comments.',
+          },
+        },
+      },
+      handler: adaptHandler(handleSyncWorkspaceIndex),
+    },
+    {
+      name: 'bootstrap_workspace',
+      description:
+        'Session bootstrap: loads workspace context, essence, notes refs, and a memory index tree with recent changes marked [new].',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          detailed_rounds: {
+            type: 'number',
+            description: 'Number of most recent rounds to return in full detail.',
+          },
+          summary_rounds: {
+            type: 'number',
+            description: 'Number of preceding rounds to return as summaries.',
+          },
+        },
+      },
+      handler: adaptHandler(handleBootstrapWorkspace),
+    },
+  ];
+
+  return tools;
 }
