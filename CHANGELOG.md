@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-06-29
+
+### Added
+- MCP Prompts support: `memory-decision-check`, `memory-theme-trace`, `memory-session-summary`.
+- MCP Resources support: `memory://<folder>/<key>`, `theme://<theme>`, `essence://essence`.
+- LobeHub badge and green npm version badge in README.
+- README sections documenting prompts and resources.
+
+### Changed
+- Code refactor: split tools/refine/DAO layers, shared utils, and unit tests.
+- `search_context` output-size controls (`compact`/`normal`/`full`, `max_output_chars`).
+
 ## [0.1.0] - 2026-06-24
 
 ### Added
@@ -36,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved `scripts/session-search-verify.mjs` with CLI/env args, safer parsing, and cleanup.
 - Updated READMEs to reflect npm-published status and setup command.
 
-[Unreleased]: https://github.com/Zehee/kimi-code-memory-mcp-server/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/Zehee/kimi-code-memory-mcp-server/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.1.2
 [0.1.1]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.1.0

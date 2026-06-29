@@ -3,7 +3,8 @@
 [English](./README.en.md)
 
 [![CI](https://github.com/Zehee/kimi-code-memory-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/Zehee/kimi-code-memory-mcp-server/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/kimi-code-memory-mcp-server.svg)](https://www.npmjs.com/package/kimi-code-memory-mcp-server)
+[![npm version](https://img.shields.io/npm/v/kimi-code-memory-mcp-server.svg?color=brightgreen)](https://www.npmjs.com/package/kimi-code-memory-mcp-server)
+[![MCP Badge](https://lobehub.com/badge/mcp/Zehee/kimi-code-memory-mcp-server)](https://lobehub.com/mcp/Zehee/kimi-code-memory-mcp-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 一个为 [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code) 提供跨会话记忆的本地 stdio MCP 服务器。
@@ -258,6 +259,26 @@ Agent：[调用 mcp__kimi-memory__tag_theme] theme=cache-design
 | `trace_theme` | 追溯主题演化 |
 | `list_themes` | 列出主题 |
 | `refine_session_turns` | 生成精炼轮次摘要 |
+
+## Prompts
+
+本服务器同时提供可复用的 MCP Prompt，供客户端在调用工具前拉取：
+
+| Prompt | 用途 |
+|--------|------|
+| `memory-decision-check` | 修改文件前，先检查与其相关的历史决策 |
+| `memory-theme-trace` | 追溯某个主题在多次会话中的演化 |
+| `memory-session-summary` | 总结当前会话，并建议值得挂载的主题 |
+
+## Resources
+
+本服务器暴露以下 MCP Resource URI，客户端可按需读取：
+
+| URI 模式 | 说明 |
+|----------|------|
+| `memory://<folder>/<key>` | 读取 `memory/` 下的某条 Markdown 记忆 |
+| `theme://<theme>` | 读取某个主题的关联摘要（Markdown 格式） |
+| `essence://essence` | 读取工作区精要 `essence/essence.md` |
 
 ## 开发
 

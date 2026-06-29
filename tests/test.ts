@@ -653,6 +653,75 @@ async function testListSearchViews() {
   });
 }
 
+async function testPromptsList() {
+  await withClient(async (client) => {
+    const result = await client.listPrompts({});
+    assert(Array.isArray(result.prompts));
+    const names = result.prompts.map((p) => p.name);
+    assert(names.includes('memory-decision-check'));
+    assert(names.includes('memory-theme-trace'));
+    assert(names.includes('memory-session-summary'));
+  });
+}
+
+async function testPromptsGet() {
+  await withClient(async (client) => {
+    const result = await client.getPrompt({
+      name: 'memory-decision-check',
+      arguments: { filePath: 'src/server.ts' },
+    });
+    assert(Array.isArray(result.messages));
+    assert.strictEqual(result.messages.length, 2);
+    assert.strictEqual(result.messages[0].role, 'user');
+    assert.strictEqual(result.messages[1].role, 'assistant');
+    assert(
+      (result.messages[0].content as { type: string; text: string }).text.includes('src/server.ts'),
+    );
+  });
+}
+
+async function testResourcesList() {
+  await withClient(async (client) => {
+    await client.callTool({
+      name: 'remember',
+      arguments: {
+        key: 'resource-test-memory',
+        folder: 'memory/knowledge',
+        content: '# Resource Test\n\nUnique resource content 42.',
+        tags: ['test'],
+      },
+    });
+
+    const result = await client.listResources({});
+    assert(Array.isArray(result.resources));
+    const uris = result.resources.map((r) => r.uri);
+    assert(uris.includes('memory://memory/knowledge/resource-test-memory'));
+  });
+}
+
+async function testResourcesRead() {
+  await withClient(async (client) => {
+    await client.callTool({
+      name: 'remember',
+      arguments: {
+        key: 'resource-read-memory',
+        folder: 'memory/knowledge',
+        content: '# Resource Read Test\n\nReadable content 99.',
+        tags: ['test'],
+      },
+    });
+
+    const result = await client.readResource({
+      uri: 'memory://memory/knowledge/resource-read-memory',
+    });
+    assert(Array.isArray(result.contents));
+    assert(result.contents.length >= 1);
+    assert(
+      (result.contents[0] as { text?: string }).text?.includes('Readable content 99'),
+    );
+  });
+}
+
 async function testLoadWorkspaceContext() {
   await withClient(async (client) => {
     const result = parseJsonResult(
@@ -748,6 +817,10 @@ const tests = [
   testSearchContextCompact,
   testSearchContextReturnsRefinedForMissingWire,
   testListSearchViews,
+  testPromptsList,
+  testPromptsGet,
+  testResourcesList,
+  testResourcesRead,
   testLoadWorkspaceContext,
   testLoadMoreContextInvalid,
   testSetupIntegration,

@@ -8,7 +8,14 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 import fs from 'fs';
 import path from 'path';
 import { getStoreRoot } from './config.js';
@@ -18,6 +25,8 @@ import { MemoryStore } from './dao/memory-store.js';
 import { ThemeManager } from './theme-manager.js';
 import { RefinedManager } from './refined-manager.js';
 import { createTools } from './tools/index.js';
+import { prompts, getPrompt } from './prompts/index.js';
+import { createResources } from './resources/index.js';
 import type { Ctx } from './types.js';
 import { VERSION } from './version.js';
 
@@ -46,10 +55,17 @@ const ctx: Ctx = {
 };
 
 const tools = createTools(ctx);
+const resources = createResources(ctx);
 
 const server = new Server(
   { name: 'kimi-code-memory', version: VERSION },
-  { capabilities: { tools: {} } },
+  {
+    capabilities: {
+      tools: {},
+      prompts: {},
+      resources: { list: true, subscribe: false } as { subscribe: boolean },
+    },
+  },
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -71,6 +87,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
   }
 });
+
+server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+  prompts,
+}));
+
+server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+  const name = request.params.name;
+  const args = request.params.arguments || {};
+  return getPrompt(name, args);
+});
+
+server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+  resources: resources.resources(),
+}));
+
+server.setRequestHandler(ReadResourceRequestSchema, async (request) =>
+  resources.readResource(request.params.uri),
+);
 
 async function main() {
   const transport = new StdioServerTransport();
