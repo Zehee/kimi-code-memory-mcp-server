@@ -454,7 +454,7 @@ body {
 }
 
 .btn-primary:hover {
-  filter: brightness(1.15);
+  background: var(--blue2);
 }
 
 .btn-secondary {
