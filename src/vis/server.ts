@@ -24,25 +24,54 @@ const KIMI_ORIGIN = 'http://127.0.0.1:58627';
 const THEME_CACHE_TTL_MS = 60_000;
 
 const FALLBACK_CSS = `:root {
-  --bg: #0d1117;
-  --canvas: #161b22;
-  --panel: #1c2128;
-  --panel2: #21262d;
-  --line: #2d333b;
-  --ink: rgba(255,255,255,0.84);
-  --text: rgba(255,255,255,0.84);
-  --muted: rgba(255,255,255,0.55);
-  --dim: rgba(255,255,255,0.35);
-  --blue: #58a6ff;
-  --blue2: #79b8ff;
-  --bluebg: #1c2a3a;
-  --soft: #21262d;
-  --bd: #1f6feb;
+  color-scheme: light dark;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --r-sm: 6px;
   --r-md: 8px;
   --r-lg: 12px;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #ffffff;
+    --canvas: #f6f8fa;
+    --panel: #f6f8fa;
+    --panel2: #f3f4f6;
+    --line: #d1d9e0;
+    --ink: #1f2328;
+    --text: #1f2328;
+    --muted: #656d76;
+    --dim: #8c959f;
+    --blue: #0969da;
+    --blue2: #218bff;
+    --bluebg: #ddf4ff;
+    --soft: #f6f8fa;
+    --bd: #0969da;
+    --ok: #1a7f37;
+    --err: #cf222e;
+    --warn: #9a6700;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --canvas: #161b22;
+    --panel: #1c2128;
+    --panel2: #21262d;
+    --line: #2d333b;
+    --ink: rgba(255,255,255,0.84);
+    --text: rgba(255,255,255,0.84);
+    --muted: rgba(255,255,255,0.55);
+    --dim: rgba(255,255,255,0.35);
+    --blue: #58a6ff;
+    --blue2: #79b8ff;
+    --bluebg: #1c2a3a;
+    --soft: #21262d;
+    --bd: #1f6feb;
+    --ok: #3fb950;
+    --err: #f85149;
+    --warn: #f5b301;
+  }
 }`;
 
 interface CachedTheme {
