@@ -159,7 +159,7 @@
 
   function renderRail() {
     const currentSection = sectionFor(state.currentView);
-    $('#rail').innerHTML = sections
+    const railItems = sections
       .map(
         (s) => `
         <div class="rail-item ${s.id === currentSection ? 'active' : ''}" data-section="${escapeHtml(
@@ -172,7 +172,15 @@
       )
       .join('');
 
-    $('#rail').querySelectorAll('.rail-item').forEach((el) => {
+    const expandItem = state.sidebarCollapsed
+      ? `<div class="rail-item rail-expand" id="railExpandBtn" title="Expand sidebar"><span class="rail-icon">▶</span><span class="rail-label">Expand</span></div>`
+      : '';
+
+    $('#rail').innerHTML = railItems + expandItem;
+
+    $('#railExpandBtn')?.addEventListener('click', toggleSidebar);
+
+    $('#rail').querySelectorAll('.rail-item[data-section]').forEach((el) => {
       el.addEventListener('click', () => {
         const section = el.dataset.section;
         const view = section === 'themes' && state.currentTheme ? `themes/${state.currentTheme}` : section;

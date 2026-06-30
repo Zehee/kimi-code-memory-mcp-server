@@ -103,6 +103,15 @@ body {
   line-height: 1;
 }
 
+.rail-expand {
+  margin-top: auto;
+  color: var(--blue);
+}
+
+.rail-expand:hover {
+  color: var(--blue2);
+}
+
 .rail-label {
   position: absolute;
   left: 44px;
