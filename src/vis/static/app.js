@@ -54,6 +54,9 @@
       memories: null,
       themeDetail: null,
     },
+    memoryFolders: [],
+    selectedMemoryFolder: null,
+    selectedMemoryFile: null,
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -83,6 +86,43 @@
       throw new Error(`${res.status}: ${text}`);
     }
     return res.json();
+  }
+
+  async function listMemoryFolders() {
+    return api('/api/folders');
+  }
+
+  async function writeMemory(folder, key, { content, title, tags }) {
+    return api(`/api/memory/${encodeURIComponent(folder)}/${encodeURIComponent(key)}`, {
+      method: 'POST',
+      body: JSON.stringify({ content, title, tags }),
+    });
+  }
+
+  async function deleteMemoryFile(folder, key) {
+    return api(`/api/memory/${encodeURIComponent(folder)}/${encodeURIComponent(key)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async function createMemoryFolder(folder) {
+    return api('/api/folders', {
+      method: 'POST',
+      body: JSON.stringify({ folder }),
+    });
+  }
+
+  async function renameMemoryFolder(oldFolder, newFolder) {
+    return api(`/api/folders/${encodeURIComponent(oldFolder)}/rename`, {
+      method: 'POST',
+      body: JSON.stringify({ newFolder }),
+    });
+  }
+
+  async function deleteMemoryFolder(folder, recursive) {
+    return api(`/api/folders/${encodeURIComponent(folder)}?recursive=${recursive ? 'true' : 'false'}`, {
+      method: 'DELETE',
+    });
   }
 
   function setStatus(el, message, type = 'success') {
@@ -269,12 +309,14 @@
         <nav class="breadcrumb" id="breadcrumb">${renderBreadcrumb()}</nav>
       </div>
       <div class="topbar-right">
+        <button class="btn btn-secondary btn-sm" id="syncTopbarBtn" type="button" title="Reconcile index.json with filesystem">Sync index</button>
         <button class="btn btn-secondary btn-sm" id="refreshBtn" type="button" title="Refresh current view">↻ Refresh</button>
         <span class="status-badge"><span class="status-dot"></span>Online</span>
       </div>
     `;
 
     $('#menuToggle').addEventListener('click', toggleMobileSidebar);
+    $('#syncTopbarBtn').addEventListener('click', syncIndex);
     $('#refreshBtn').addEventListener('click', () => loadDataForView(state.currentView, state.currentTheme));
     $('#breadcrumb').querySelectorAll('a').forEach((a) => {
       a.addEventListener('click', (e) => {
@@ -326,7 +368,6 @@
       <section class="view view-active" data-view="workspace">
         <div class="page-header">
           <h1 class="page-title">Workspace</h1>
-          <button class="btn btn-secondary btn-sm" id="syncBtn" type="button">Sync index</button>
         </div>
         <div class="stat-grid" id="statsGrid"></div>
         <div class="composer-card">
@@ -347,7 +388,6 @@
     renderStats(state.data.workspace?.stats || {});
     $('#essenceEditor').value = state.data.workspace?.essence || '';
     $('#saveEssenceBtn').addEventListener('click', saveEssence);
-    $('#syncBtn').addEventListener('click', syncIndex);
   }
 
   function renderStats(stats) {
@@ -399,9 +439,11 @@
   }
 
   async function syncIndex() {
-    const btn = $('#syncBtn');
+    const btn = $('#syncTopbarBtn');
+    if (!btn) return;
     const original = btn.textContent;
     btn.textContent = 'Syncing…';
+    btn.disabled = true;
     try {
       await api('/api/sync', { method: 'POST' });
       await loadWorkspace();
@@ -409,7 +451,10 @@
     } catch (err) {
       btn.textContent = `Failed: ${err.message}`;
     }
-    setTimeout(() => (btn.textContent = original), 1500);
+    setTimeout(() => {
+      btn.textContent = original;
+      btn.disabled = false;
+    }, 1500);
   }
 
   function renderThemesView() {
@@ -642,11 +687,14 @@
       <section class="view view-active" data-view="memories">
         <div class="page-header">
           <h1 class="page-title">Memories</h1>
+          <button class="btn btn-primary btn-sm" id="newFolderTopBtn" type="button">+ New folder</button>
         </div>
         <div class="memories-layout">
-          <div class="memory-tree" id="memoryTree"></div>
-          <div class="memory-preview" id="memoryPreview">
-            <div class="empty-state">Select a memory to view its content.</div>
+          <div class="folder-tree" id="folderTree">
+            <div class="empty-state">Loading folders…</div>
+          </div>
+          <div class="memory-editor" id="memoryEditor">
+            <div class="empty-state">Select a folder or file to get started.</div>
           </div>
         </div>
       </section>
@@ -654,98 +702,284 @@
   }
 
   function bindMemoriesView() {
-    renderMemoryTree();
+    renderFolderTree();
+    renderMemoryEditor();
+    $('#newFolderTopBtn')?.addEventListener('click', () => createFolderPrompt(state.selectedMemoryFolder));
   }
 
-  function renderMemoryNode(node, basePath = '') {
-    const currentPath = basePath ? `${basePath}/${node.name}` : node.name;
-    const filesHtml =
-      node.files && node.files.length
-        ? node.files
-            .map(
-              (file) => `
-              <div class="tree-file" data-path="${escapeHtml(currentPath)}/${escapeHtml(file.key)}" data-key="${escapeHtml(
-                file.key,
-              )}" data-folder="${escapeHtml(currentPath)}">
-                <span>📄</span>
-                <span>${escapeHtml(file.title || file.key)}</span>
-              </div>
-            `,
-            )
-            .join('')
-        : '';
-
-    const childrenHtml =
-      node.children && node.children.length
-        ? node.children.map((child) => renderMemoryNode(child, currentPath)).join('')
-        : '';
-
-    const commentHtml = node.comment ? `<div class="tree-comment">${escapeHtml(node.comment)}</div>` : '';
-
-    if (!node.children?.length && !node.files?.length) {
-      return '';
-    }
+  function renderFolderRow(node, path, depth = 0) {
+    const isRoot = path === node.name;
+    const isSelected = state.selectedMemoryFolder === path;
+    const childrenHtml = (node.children || [])
+      .map((child) => renderFolderRow(child, `${path}/${child.name}`, depth + 1))
+      .join('');
 
     return `
-      <div class="tree-node">
-        <div class="tree-folder">
-          <span class="tree-folder-icon">▸</span>
-          <span>${escapeHtml(node.name)}</span>
+      <div class="folder-branch" data-folder="${escapeHtml(path)}">
+        <div class="folder-row ${isSelected ? 'active' : ''}" style="padding-left:${12 + depth * 14}px">
+          <span class="folder-row-main" data-folder="${escapeHtml(path)}">
+            <span class="folder-icon">${isRoot ? '📁' : '📂'}</span>
+            <span class="folder-name">${escapeHtml(node.name || 'root')}</span>
+          </span>
+          <span class="folder-actions">
+            <button class="icon-btn" data-action="new-file" data-folder="${escapeHtml(path)}" title="New file">✚</button>
+            <button class="icon-btn" data-action="rename" data-folder="${escapeHtml(path)}" title="Rename">✎</button>
+            ${!isRoot ? `<button class="icon-btn" data-action="delete" data-folder="${escapeHtml(path)}" title="Delete">🗑</button>` : ''}
+          </span>
         </div>
-        ${commentHtml}
-        ${filesHtml}
         ${childrenHtml}
       </div>
     `;
   }
 
-  function renderMemoryTree() {
-    const tree = $('#memoryTree');
+  function renderFolderTree() {
+    const tree = $('#folderTree');
     if (!tree) return;
     if (!state.data.memories) {
-      tree.innerHTML = '<div class="empty-state">Loading memories…</div>';
+      tree.innerHTML = '<div class="empty-state">Loading folders…</div>';
       return;
     }
-    tree.innerHTML = renderMemoryNode(state.data.memories);
 
-    tree.querySelectorAll('.tree-file').forEach((fileEl) => {
-      fileEl.addEventListener('click', () => {
-        tree.querySelectorAll('.tree-file').forEach((f) => f.classList.remove('active'));
-        fileEl.classList.add('active');
-        loadMemoryContent(fileEl.dataset.folder, fileEl.dataset.key);
+    const virtualRoot = state.data.memories;
+    const rootsHtml = (virtualRoot.children || [])
+      .map((root) => renderFolderRow(root, root.name))
+      .join('');
+    tree.innerHTML = rootsHtml || '<div class="empty-state">No folders found.</div>';
+
+    tree.querySelectorAll('.folder-row-main').forEach((el) => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectFolder(el.dataset.folder);
+      });
+    });
+
+    tree.querySelectorAll('[data-action]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const folder = btn.dataset.folder;
+        const action = btn.dataset.action;
+        if (action === 'new-file') createFilePrompt(folder);
+        else if (action === 'rename') renameFolderPrompt(folder);
+        else if (action === 'delete') deleteFolderPrompt(folder);
       });
     });
   }
 
-  async function loadMemoryContent(folder, key) {
-    const preview = $('#memoryPreview');
-    try {
-      const memory = await api(`/api/memory/${encodeURIComponent(folder)}/${encodeURIComponent(key)}`);
-      preview.innerHTML = `
-        <div class="preview-header">
-          <div>
-            <h2 class="preview-title">${escapeHtml(memory.title || key)}</h2>
-            <div class="preview-path">${escapeHtml(folder)}/${escapeHtml(key)}</div>
-            <div class="tag-list" style="margin-top:8px">
-              ${memory.tags.map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join('')}
-            </div>
+  function getFolderNode(root, folderPath) {
+    const parts = folderPath.split('/');
+    let current = root;
+    if (!current) return null;
+    for (const part of parts) {
+      current = (current.children || []).find((c) => c.name === part);
+      if (!current) return null;
+    }
+    return current;
+  }
+
+  function renderFileList(folderPath) {
+    const node = getFolderNode(state.data.memories, folderPath);
+    if (!node || !node.files.length) {
+      return '<div class="empty-state" style="min-height:120px">No files in this folder.</div>';
+    }
+    const filesHtml = node.files
+      .map(
+        (file) => `
+        <div class="file-row ${state.selectedMemoryFile?.folder === folderPath && state.selectedMemoryFile?.key === file.key ? 'active' : ''}"
+             data-folder="${escapeHtml(folderPath)}" data-key="${escapeHtml(file.key)}">
+          <span class="file-icon">📄</span>
+          <span class="file-name">${escapeHtml(file.title || file.key)}</span>
+        </div>
+      `,
+      )
+      .join('');
+    return `<div class="file-list">${filesHtml}</div>`;
+  }
+
+  function renderMemoryEditor() {
+    const editor = $('#memoryEditor');
+    if (!editor) return;
+
+    const file = state.selectedMemoryFile;
+    let composerHtml = '';
+    if (file) {
+      const tags = Array.isArray(file.tags) ? file.tags.join(', ') : '';
+      composerHtml = `
+        <div class="composer-card memory-composer">
+          <div class="composer-header">
+            <h2 class="composer-title">${escapeHtml(file.key)}</h2>
+            <div class="composer-status" id="composerStatus"></div>
+          </div>
+          <div class="composer-body">
+            <label class="field-label">Title</label>
+            <input type="text" class="composer-input" id="memoryTitle" value="${escapeHtml(file.title || '')}" placeholder="Memory title" />
+            <label class="field-label">Tags</label>
+            <input type="text" class="composer-input" id="memoryTags" value="${escapeHtml(tags)}" placeholder="tag1, tag2" />
+            <label class="field-label">Content</label>
+            <textarea class="composer-textarea" id="memoryContent" placeholder="Write markdown content…">${escapeHtml(file.content || '')}</textarea>
+          </div>
+          <div class="composer-footer">
+            <button class="btn btn-primary" id="saveMemoryBtn" type="button">Save</button>
+            <button class="btn btn-secondary" id="deleteMemoryBtn" type="button">Delete</button>
           </div>
         </div>
-        <div class="preview-content">${escapeHtml(memory.content)}</div>
       `;
-    } catch (err) {
-      preview.innerHTML = `
-        <div class="preview-header">
-          <h2 class="preview-title">${escapeHtml(key)}</h2>
+    } else {
+      composerHtml = `
+        <div class="empty-state" style="min-height:180px">
+          <div>
+            <div style="font-size:18px;margin-bottom:8px">📝</div>
+            <div>Select a file to edit, or choose a folder and create a new file.</div>
+          </div>
         </div>
-        <div class="preview-content error">Failed to load memory: ${escapeHtml(err.message)}</div>
       `;
+    }
+
+    const folder = state.selectedMemoryFolder;
+    const fileListHtml = folder
+      ? `
+        <div class="file-list-section">
+          <div class="file-list-header">Files in ${escapeHtml(folder)}</div>
+          ${renderFileList(folder)}
+        </div>
+      `
+      : '';
+
+    editor.innerHTML = composerHtml + fileListHtml;
+
+    if (file) {
+      $('#saveMemoryBtn').addEventListener('click', saveSelectedMemory);
+      $('#deleteMemoryBtn').addEventListener('click', deleteSelectedMemory);
+    }
+
+    editor.querySelectorAll('.file-row').forEach((row) => {
+      row.addEventListener('click', () => {
+        selectFile(row.dataset.folder, row.dataset.key);
+      });
+    });
+  }
+
+  function selectFolder(folderPath) {
+    state.selectedMemoryFolder = folderPath;
+    state.selectedMemoryFile = null;
+    renderFolderTree();
+    renderMemoryEditor();
+  }
+
+  async function selectFile(folder, key) {
+    try {
+      const memory = await api(`/api/memory/${encodeURIComponent(folder)}/${encodeURIComponent(key)}`);
+      state.selectedMemoryFile = { folder, key, ...memory };
+      state.selectedMemoryFolder = folder;
+      renderFolderTree();
+      renderMemoryEditor();
+    } catch (err) {
+      alert(`Failed to load memory: ${err.message}`);
+    }
+  }
+
+  async function createFolderPrompt(parentFolder) {
+    const parent = parentFolder && state.memoryFolders.includes(parentFolder) ? parentFolder : 'memory';
+    const name = prompt('New folder name:', '');
+    if (!name) return;
+    const folderPath = `${parent}/${name.trim()}`.replace(/\/+/g, '/');
+    try {
+      const result = await createMemoryFolder(folderPath);
+      if (!result.ok) throw new Error(result.error || 'Failed to create folder');
+      state.selectedMemoryFolder = folderPath;
+      await loadMemories();
+    } catch (err) {
+      alert(`Create folder failed: ${err.message}`);
+    }
+  }
+
+  async function renameFolderPrompt(folderPath) {
+    const newPath = prompt('Rename folder to:', folderPath);
+    if (!newPath || newPath === folderPath) return;
+    try {
+      const result = await renameMemoryFolder(folderPath, newPath);
+      if (!result.ok) throw new Error(result.error || 'Failed to rename folder');
+      if (state.selectedMemoryFolder === folderPath) state.selectedMemoryFolder = newPath;
+      await loadMemories();
+    } catch (err) {
+      alert(`Rename folder failed: ${err.message}`);
+    }
+  }
+
+  async function deleteFolderPrompt(folderPath) {
+    if (!confirm(`Delete folder "${folderPath}" and all its contents? This cannot be undone.`)) return;
+    try {
+      const result = await deleteMemoryFolder(folderPath, true);
+      if (!result.ok) throw new Error(result.error || 'Failed to delete folder');
+      if (state.selectedMemoryFolder === folderPath) {
+        state.selectedMemoryFolder = null;
+        state.selectedMemoryFile = null;
+      }
+      await loadMemories();
+    } catch (err) {
+      alert(`Delete folder failed: ${err.message}`);
+    }
+  }
+
+  async function createFilePrompt(folderPath) {
+    const key = prompt('New memory key:', '');
+    if (!key) return;
+    state.selectedMemoryFile = { folder: folderPath, key, title: '', tags: [], content: '', isNew: true };
+    state.selectedMemoryFolder = folderPath;
+    renderFolderTree();
+    renderMemoryEditor();
+  }
+
+  function parseTagsInput(value) {
+    return String(value || '')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+  }
+
+  async function saveSelectedMemory() {
+    const file = state.selectedMemoryFile;
+    if (!file) return;
+    const title = $('#memoryTitle').value;
+    const tags = parseTagsInput($('#memoryTags').value);
+    const content = $('#memoryContent').value;
+    const status = $('#composerStatus');
+    try {
+      const result = await writeMemory(file.folder, file.key, { content, title, tags });
+      if (!result.ok) throw new Error(result.error || 'Failed to save memory');
+      setStatus(status, 'Memory saved.', 'success');
+      state.selectedMemoryFile = { ...file, title, tags, content, isNew: false };
+      await loadMemories();
+    } catch (err) {
+      setStatus(status, `Save failed: ${err.message}`, 'error');
+    }
+  }
+
+  async function deleteSelectedMemory() {
+    const file = state.selectedMemoryFile;
+    if (!file) return;
+    if (!confirm(`Delete "${file.folder}/${file.key}"? This cannot be undone.`)) return;
+    try {
+      const result = await deleteMemoryFile(file.folder, file.key);
+      if (!result.ok) throw new Error(result.error || 'Failed to delete memory');
+      state.selectedMemoryFile = null;
+      await loadMemories();
+    } catch (err) {
+      alert(`Delete memory failed: ${err.message}`);
     }
   }
 
   async function loadMemories() {
-    state.data.memories = await api('/api/memories');
-    if (state.currentView === 'memories') renderMemoryTree();
+    const [tree, folders] = await Promise.all([api('/api/memories'), listMemoryFolders()]);
+    state.data.memories = tree;
+    state.memoryFolders = folders;
+    if (state.selectedMemoryFolder && !folders.includes(state.selectedMemoryFolder)) {
+      state.selectedMemoryFolder = null;
+      state.selectedMemoryFile = null;
+    }
+    if (state.currentView === 'memories') {
+      renderFolderTree();
+      renderMemoryEditor();
+    }
   }
 
   function renderSettingsView() {

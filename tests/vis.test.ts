@@ -159,7 +159,87 @@ async function testStaticFallback() {
   }
 }
 
-const tests = [testWorkspaceEndpoint, testThemesEndpoint, testSaveEssenceAndReadBack, testStaticFallback];
+async function testFolderEndpoints() {
+  const { ctx, cleanup } = createTempCtx();
+  const { url, stop } = await startTestServer(ctx);
+  try {
+    const listRes = await fetch(`${url}/api/folders`);
+    assert(listRes.ok, `list folders failed: ${listRes.status}`);
+    const folders = (await listRes.json()) as string[];
+    assert(folders.includes('memory') && folders.includes('notes'));
+
+    const createRes = await fetch(`${url}/api/folders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder: 'memory/decisions' }),
+    });
+    assert(createRes.ok, `create folder failed: ${createRes.status}`);
+
+    const list2 = (await (await fetch(`${url}/api/folders`)).json()) as string[];
+    assert(list2.includes('memory/decisions'));
+
+    const renameRes = await fetch(`${url}/api/folders/${encodeURIComponent('memory/decisions')}/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newFolder: 'memory/choices' }),
+    });
+    assert(renameRes.ok, `rename folder failed: ${renameRes.status}`);
+
+    const list3 = (await (await fetch(`${url}/api/folders`)).json()) as string[];
+    assert(list3.includes('memory/choices'));
+
+    const deleteRes = await fetch(`${url}/api/folders/${encodeURIComponent('memory/choices')}?recursive=true`, {
+      method: 'DELETE',
+    });
+    assert(deleteRes.ok, `delete folder failed: ${deleteRes.status}`);
+
+    const list4 = (await (await fetch(`${url}/api/folders`)).json()) as string[];
+    assert(!list4.includes('memory/choices'));
+  } finally {
+    stop();
+    cleanup();
+  }
+}
+
+async function testMemoryCrudEndpoints() {
+  const { ctx, cleanup } = createTempCtx();
+  const { url, stop } = await startTestServer(ctx);
+  try {
+    const writeRes = await fetch(`${url}/api/memory/${encodeURIComponent('memory/knowledge')}/${encodeURIComponent('test-item')}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'Body content', title: 'Test Item', tags: ['knowledge'] }),
+    });
+    assert(writeRes.ok, `write memory failed: ${writeRes.status}`);
+
+    const readRes = await fetch(`${url}/api/memory/${encodeURIComponent('memory/knowledge')}/${encodeURIComponent('test-item')}`);
+    assert(readRes.ok, `read memory failed: ${readRes.status}`);
+    const data = (await readRes.json()) as { content: string; title: string; tags: string[] };
+    assert.strictEqual(data.title, 'Test Item');
+    assert.strictEqual(data.content, 'Body content');
+    assert(data.tags.includes('knowledge'));
+
+    const deleteRes = await fetch(`${url}/api/memory/${encodeURIComponent('memory/knowledge')}/${encodeURIComponent('test-item')}`, {
+      method: 'DELETE',
+    });
+    assert(deleteRes.ok, `delete memory failed: ${deleteRes.status}`);
+
+    const read2 = await fetch(`${url}/api/memory/${encodeURIComponent('memory/knowledge')}/${encodeURIComponent('test-item')}`);
+    assert.strictEqual(read2.status, 404);
+  } finally {
+    stop();
+    cleanup();
+  }
+}
+
+const tests = [
+  testWorkspaceEndpoint,
+  testThemesEndpoint,
+  testSaveEssenceAndReadBack,
+  testStaticFallback,
+  testFolderEndpoints,
+  testMemoryCrudEndpoints,
+];
 
 async function main() {
   try {

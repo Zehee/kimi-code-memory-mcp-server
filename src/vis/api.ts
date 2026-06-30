@@ -10,10 +10,12 @@ import fs from 'fs';
 import path from 'path';
 import type { Ctx } from '../types.js';
 import { getSessionsRoot } from '../config.js';
-import { atomicWriteFile } from '../utils/paths.js';
+import { atomicWriteFile, safeResolve } from '../utils/paths.js';
+import { sanitizeFolder, sanitizeKey, toTitle } from '../utils/validation.js';
+import { safeParseFile } from '../utils/file-helpers.js';
 import type { ThemeAssociation } from '../theme-manager.js';
 import type { RefinedTurn } from '../refine/types.js';
-import type { TreeNode } from '../dao/index.js';
+import type { IndexEntry } from '../dao/index.js';
 
 export interface WorkspaceInfo {
   id: string;
@@ -231,29 +233,110 @@ export function getRecentDecisions(ctx: Ctx, limit = 20): DecisionItem[] {
   return decisions;
 }
 
-function treeNodeToMemoryNode(node: TreeNode): MemoryNode {
-  const children: MemoryNode[] = [];
-  node.children.forEach((child) => {
-    children.push(treeNodeToMemoryNode(child));
-  });
+function validateFolderPath(folder: unknown, allowRoot = true): string | null {
+  const sanitized = sanitizeFolder(folder);
+  if (!sanitized) return null;
+  if (
+    sanitized !== 'memory' &&
+    !sanitized.startsWith('memory/') &&
+    sanitized !== 'notes' &&
+    !sanitized.startsWith('notes/')
+  ) {
+    return null;
+  }
+  if (!allowRoot && (sanitized === 'memory' || sanitized === 'notes')) return null;
+  return sanitized;
+}
 
-  return {
-    name: node.name,
-    comment: node.comment || '',
-    files: node.files.map((file) => ({
-      key: file.key,
-      title: file.title,
-      tags: file.tags,
-      createdAt: file.createdAt || '',
-      updatedAt: file.updatedAt || '',
-    })),
-    children,
+export function listMemoryFolders(ctx: Ctx): string[] {
+  const folders: string[] = [];
+  for (const root of ['memory', 'notes']) {
+    const rootPath = path.join(ctx.storeRoot, root);
+    if (!fs.existsSync(rootPath)) continue;
+    folders.push(root);
+    const walk = (dir: string, prefix: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+        folders.push(rel);
+        walk(path.join(dir, entry.name), rel);
+      }
+    };
+    walk(rootPath, root);
+  }
+  return folders.sort();
+}
+
+function buildRootNode(rootName: string, index: Record<string, IndexEntry>, storeRoot: string): MemoryNode {
+  const root: MemoryNode = {
+    name: rootName,
+    comment: index[`${rootName}/`]?.comment || '',
+    files: [],
+    children: [],
   };
+
+  for (const key of Object.keys(index).sort()) {
+    if (!key.startsWith(`${rootName}/`)) continue;
+
+    if (key.endsWith('/')) {
+      if (key === `${rootName}/`) continue;
+      const relativeFolder = key.slice(rootName.length + 1, -1);
+      const parts = relativeFolder.split('/');
+      let current = root;
+      let currentPath = rootName;
+      for (const part of parts) {
+        currentPath = `${currentPath}/${part}`;
+        let child = current.children.find((c) => c.name === part);
+        if (!child) {
+          child = {
+            name: part,
+            comment: index[`${currentPath}/`]?.comment || '',
+            files: [],
+            children: [],
+          };
+          current.children.push(child);
+        }
+        current = child;
+      }
+      current.comment = index[key]?.comment || '';
+    } else if (key.endsWith('.md')) {
+      const relativePath = key.slice(rootName.length + 1);
+      const dirPart = path.dirname(relativePath);
+      const parts = dirPart === '.' ? [] : dirPart.split('/');
+      const fileName = path.basename(key, '.md');
+      const value = index[key];
+      let current = root;
+      for (const part of parts) {
+        let child = current.children.find((c) => c.name === part);
+        if (!child) {
+          child = { name: part, comment: '', files: [], children: [] };
+          current.children.push(child);
+        }
+        current = child;
+      }
+      const filePath = path.join(storeRoot, key);
+      const parsed = safeParseFile(filePath);
+      current.files.push({
+        key: fileName,
+        title: value?.title || toTitle(fileName),
+        tags: Array.isArray(value?.tags) ? value.tags : [],
+        createdAt: String(parsed?.frontmatter?.createdAt || ''),
+        updatedAt: String(parsed?.frontmatter?.updatedAt || ''),
+      });
+    }
+  }
+
+  return root;
 }
 
 export function getMemories(ctx: Ctx): MemoryNode {
-  const tree = ctx.indexDao.buildMemoryTreeData();
-  return treeNodeToMemoryNode(tree);
+  const index = ctx.indexDao.getIndex().index;
+  return {
+    name: '',
+    comment: '',
+    files: [],
+    children: [buildRootNode('memory', index, ctx.storeRoot), buildRootNode('notes', index, ctx.storeRoot)],
+  };
 }
 
 export function getMemoryContent(
@@ -268,6 +351,119 @@ export function getMemoryContent(
     title: String(result.title || key),
     tags: Array.isArray(result.tags) ? result.tags : [],
   };
+}
+
+export async function writeMemory(
+  ctx: Ctx,
+  folder: string,
+  key: string,
+  options: { content?: string; title?: string; tags?: string[] },
+): Promise<{ ok: boolean; filePath?: string; error?: string }> {
+  const normalizedFolder = validateFolderPath(folder);
+  if (!normalizedFolder) {
+    return { ok: false, error: 'Invalid folder path' };
+  }
+  const normalizedKey = sanitizeKey(key);
+  const content = typeof options.content === 'string' ? options.content : '';
+  const title = typeof options.title === 'string' ? options.title : undefined;
+  const tags = Array.isArray(options.tags) ? options.tags.filter((t) => typeof t === 'string') : [];
+
+  const filePath = ctx.memoryStore.write(normalizedFolder, normalizedKey, content, tags, { title });
+  await ctx.indexDao.upsertEntry(filePath);
+  return { ok: true, filePath: path.relative(ctx.storeRoot, filePath).replace(/\\/g, '/') };
+}
+
+export async function deleteMemory(
+  ctx: Ctx,
+  folder: string,
+  key: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const normalizedFolder = validateFolderPath(folder);
+  if (!normalizedFolder) {
+    return { ok: false, error: 'Invalid folder path' };
+  }
+  const normalizedKey = sanitizeKey(key);
+  const filePath = ctx.memoryStore.resolveFilePath(normalizedFolder, normalizedKey);
+  const relativePath = path.relative(ctx.storeRoot, filePath).replace(/\\/g, '/');
+  const deleted = ctx.memoryStore.delete(normalizedFolder, normalizedKey);
+  if (!deleted) {
+    return { ok: false, error: 'Memory not found' };
+  }
+  await ctx.indexDao.deleteEntryByPath(relativePath);
+  return { ok: true };
+}
+
+export async function createFolder(
+  ctx: Ctx,
+  folderPath: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const normalized = validateFolderPath(folderPath, false);
+  if (!normalized) {
+    return { ok: false, error: 'Invalid folder path' };
+  }
+  const absPath = safeResolve(ctx.storeRoot, normalized);
+  if (fs.existsSync(absPath)) {
+    return { ok: false, error: 'Folder already exists' };
+  }
+  fs.mkdirSync(absPath, { recursive: true });
+  await ctx.indexDao.setFolderComment(normalized, '');
+  return { ok: true };
+}
+
+export async function renameFolder(
+  ctx: Ctx,
+  oldFolderPath: string,
+  newFolderPath: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const oldNormalized = validateFolderPath(oldFolderPath, false);
+  if (!oldNormalized) {
+    return { ok: false, error: 'Invalid source folder path' };
+  }
+  const newNormalized = validateFolderPath(newFolderPath, false);
+  if (!newNormalized) {
+    return { ok: false, error: 'Invalid destination folder path' };
+  }
+  if (oldNormalized === newNormalized) {
+    return { ok: false, error: 'Source and destination are the same' };
+  }
+  const oldAbs = safeResolve(ctx.storeRoot, oldNormalized);
+  const newAbs = safeResolve(ctx.storeRoot, newNormalized);
+  if (!fs.existsSync(oldAbs)) {
+    return { ok: false, error: 'Source folder not found' };
+  }
+  if (fs.existsSync(newAbs)) {
+    return { ok: false, error: 'Destination folder already exists' };
+  }
+  fs.mkdirSync(path.dirname(newAbs), { recursive: true });
+  fs.renameSync(oldAbs, newAbs);
+  await ctx.indexDao.reconcileIndex();
+  return { ok: true };
+}
+
+export async function deleteFolder(
+  ctx: Ctx,
+  folderPath: string,
+  recursive = false,
+): Promise<{ ok: boolean; error?: string }> {
+  const normalized = validateFolderPath(folderPath, false);
+  if (!normalized) {
+    return { ok: false, error: 'Invalid folder path' };
+  }
+  const absPath = safeResolve(ctx.storeRoot, normalized);
+  if (!fs.existsSync(absPath)) {
+    return { ok: false, error: 'Folder not found' };
+  }
+  if (recursive) {
+    fs.rmSync(absPath, { recursive: true, force: true });
+  } else {
+    const entries = fs.readdirSync(absPath);
+    if (entries.length > 0) {
+      return { ok: false, error: 'Folder is not empty' };
+    }
+    fs.rmdirSync(absPath);
+  }
+  await ctx.indexDao.reconcileIndex();
+  return { ok: true };
 }
 
 export function saveEssence(ctx: Ctx, content: string): { ok: boolean } {

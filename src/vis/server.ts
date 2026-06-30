@@ -18,6 +18,12 @@ import {
   getMemoryContent,
   saveEssence,
   updateTheme,
+  listMemoryFolders,
+  writeMemory,
+  deleteMemory,
+  createFolder,
+  renameFolder,
+  deleteFolder,
 } from './api.js';
 
 const KIMI_ORIGIN = 'http://127.0.0.1:58627';
@@ -134,7 +140,7 @@ export function createApp(ctx: Ctx): Hono {
 
   app.use('/api/*', async (c, next) => {
     c.header('Access-Control-Allow-Origin', '*');
-    c.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    c.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
     c.header('Access-Control-Allow-Headers', 'Content-Type');
     if (c.req.method === 'OPTIONS') return c.body(null, 204);
     await next();
@@ -163,12 +169,68 @@ export function createApp(ctx: Ctx): Hono {
     return c.json(getMemories(ctx));
   });
 
+  app.get('/api/folders', (c) => {
+    return c.json(listMemoryFolders(ctx));
+  });
+
+  app.post('/api/memory/:folder{.+}/:key', async (c) => {
+    const folder = decodeURIComponent(c.req.param('folder'));
+    const key = decodeURIComponent(c.req.param('key'));
+    const body = (await c.req.json().catch(() => ({}))) as {
+      content?: unknown;
+      title?: unknown;
+      tags?: unknown;
+    };
+    const tags = Array.isArray(body.tags)
+      ? body.tags.filter((t): t is string => typeof t === 'string')
+      : [];
+    const result = await writeMemory(ctx, folder, key, {
+      content: typeof body.content === 'string' ? body.content : '',
+      title: typeof body.title === 'string' ? body.title : undefined,
+      tags,
+    });
+    return c.json(result, result.ok ? 200 : 400);
+  });
+
+  app.delete('/api/memory/:folder{.+}/:key', async (c) => {
+    const folder = decodeURIComponent(c.req.param('folder'));
+    const key = decodeURIComponent(c.req.param('key'));
+    const result = await deleteMemory(ctx, folder, key);
+    return c.json(result, result.ok ? 200 : 404);
+  });
+
   app.get('/api/memory/:folder{.+}/:key', (c) => {
     const folder = decodeURIComponent(c.req.param('folder'));
     const key = decodeURIComponent(c.req.param('key'));
     const result = getMemoryContent(ctx, folder, key);
     if (!result) return c.json({ error: 'Memory not found' }, 404);
     return c.json(result);
+  });
+
+  app.post('/api/folders', async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { folder?: unknown };
+    if (typeof body.folder !== 'string') {
+      return c.json({ ok: false, error: 'folder is required' }, 400);
+    }
+    const result = await createFolder(ctx, body.folder);
+    return c.json(result, result.ok ? 200 : 400);
+  });
+
+  app.post('/api/folders/:folder{.+}/rename', async (c) => {
+    const folder = decodeURIComponent(c.req.param('folder'));
+    const body = (await c.req.json().catch(() => ({}))) as { newFolder?: unknown };
+    if (typeof body.newFolder !== 'string') {
+      return c.json({ ok: false, error: 'newFolder is required' }, 400);
+    }
+    const result = await renameFolder(ctx, folder, body.newFolder);
+    return c.json(result, result.ok ? 200 : 400);
+  });
+
+  app.delete('/api/folders/:folder{.+}', async (c) => {
+    const folder = decodeURIComponent(c.req.param('folder'));
+    const recursive = c.req.query('recursive') === 'true';
+    const result = await deleteFolder(ctx, folder, recursive);
+    return c.json(result, result.ok ? 200 : 400);
   });
 
   app.post('/api/essence', async (c) => {
