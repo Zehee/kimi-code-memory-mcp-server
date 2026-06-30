@@ -449,7 +449,7 @@ body {
 }
 
 .btn-primary {
-  background: var(--bd);
+  background: var(--blue);
   color: var(--bg);
 }
 
