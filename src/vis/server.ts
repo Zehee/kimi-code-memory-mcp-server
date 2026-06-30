@@ -20,6 +20,75 @@ import {
   updateTheme,
 } from './api.js';
 
+const KIMI_ORIGIN = 'http://127.0.0.1:58627';
+const THEME_CACHE_TTL_MS = 60_000;
+
+const FALLBACK_CSS = `:root {
+  --bg: #0d1117;
+  --canvas: #161b22;
+  --panel: #1c2128;
+  --panel2: #21262d;
+  --line: #2d333b;
+  --ink: rgba(255,255,255,0.84);
+  --text: rgba(255,255,255,0.84);
+  --muted: rgba(255,255,255,0.55);
+  --dim: rgba(255,255,255,0.35);
+  --blue: #58a6ff;
+  --blue2: #79b8ff;
+  --bluebg: #1c2a3a;
+  --soft: #21262d;
+  --bd: #1f6feb;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+}`;
+
+interface CachedTheme {
+  css: string;
+  fetchedAt: number;
+}
+
+let cachedTheme: CachedTheme | null = null;
+
+async function fetchTextWithTimeout(url: string, timeoutMs: number): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.text();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function proxyKimiThemeCss(): Promise<{ css: string; fromCache: boolean }> {
+  if (cachedTheme && Date.now() - cachedTheme.fetchedAt < THEME_CACHE_TTL_MS) {
+    return { css: cachedTheme.css, fromCache: true };
+  }
+
+  try {
+    const html = await fetchTextWithTimeout(`${KIMI_ORIGIN}/`, 3000);
+    const match =
+      html.match(
+        new RegExp(`<link[^>]+rel=["']stylesheet["'][^>]*href=["'](/assets/index-[a-zA-Z0-9]+\\.css)["'][^>]*>`, 'i'),
+      ) ||
+      html.match(
+        new RegExp(`<link[^>]+href=["'](/assets/index-[a-zA-Z0-9]+\\.css)["'][^>]*rel=["']stylesheet["'][^>]*>`, 'i'),
+      );
+    const cssPath = match?.[1];
+    if (!cssPath) throw new Error('Kimi stylesheet link not found');
+
+    const css = await fetchTextWithTimeout(`${KIMI_ORIGIN}${cssPath}`, 3000);
+    cachedTheme = { css, fetchedAt: Date.now() };
+    return { css, fromCache: false };
+  } catch {
+    return { css: FALLBACK_CSS, fromCache: false };
+  }
+}
+
 export interface VisServerOptions {
   ctx: Ctx;
   port: number;
@@ -109,6 +178,13 @@ export function createApp(ctx: Ctx): Hono {
   app.post('/api/sync', async (c) => {
     const result = await ctx.indexDao.reconcileIndex();
     return c.json(result);
+  });
+
+  app.get('/kimi-theme.css', async (c) => {
+    const result = await proxyKimiThemeCss();
+    c.header('Content-Type', 'text/css');
+    c.header('X-Theme-Source', result.fromCache ? 'cache' : result.css === FALLBACK_CSS ? 'fallback' : 'proxy');
+    return c.body(result.css);
   });
 
   const staticRoot = getStaticRoot();
