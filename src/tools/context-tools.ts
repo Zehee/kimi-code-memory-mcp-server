@@ -3,6 +3,7 @@
  */
 
 import type {
+  DeleteSearchViewArgs,
   ListSearchViewsArgs,
   LoadMoreContextArgs,
   LoadTurnContextArgs,
@@ -572,6 +573,50 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
     });
   }
 
+  async function handleDeleteSearchView(args: DeleteSearchViewArgs) {
+    const key = typeof args.key === 'string' ? args.key.trim() : '';
+    if (!key) {
+      return toolResult({ success: false, error: 'Missing or invalid "key"' }, true);
+    }
+    const deleteRefinedTurns = args.deleteRefinedTurns === true;
+    const filePath = path.join(storeRoot, 'searches', `${key}.json`);
+    if (!fs.existsSync(filePath)) {
+      return toolResult({ success: false, error: 'Search view not found' }, true);
+    }
+
+    const refinedTurnsToDelete: Array<{ sessionId: string; turnId: number }> = [];
+    if (deleteRefinedTurns) {
+      try {
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        const clusters = Array.isArray(data.clusters) ? data.clusters : [];
+        const seen = new Set<string>();
+        for (const cluster of clusters) {
+          const members = Array.isArray(cluster.members) ? cluster.members : [];
+          for (const m of members) {
+            if (m && typeof m.sessionId === 'string' && typeof m.turnId === 'number') {
+              const id = `${m.sessionId}:${m.turnId}`;
+              if (!seen.has(id)) {
+                seen.add(id);
+                refinedTurnsToDelete.push({ sessionId: m.sessionId, turnId: m.turnId });
+              }
+            }
+          }
+        }
+      } catch {
+        // Ignore parse errors and proceed with deleting the view file.
+      }
+    }
+
+    fs.unlinkSync(filePath);
+
+    let deletedRefinedTurns = 0;
+    if (deleteRefinedTurns && refinedTurnsToDelete.length > 0) {
+      deletedRefinedTurns = await refinedManager.deleteRefinedTurns(refinedTurnsToDelete);
+    }
+
+    return toolResult({ success: true, deletedRefinedTurns });
+  }
+
   const tools: ToolDefinition[] = [
     {
       name: 'load_workspace_context',
@@ -660,6 +705,23 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
         },
       },
       handler: adaptHandler(handleListSearchViews),
+    },
+    {
+      name: 'delete_search_view',
+      description:
+        'Delete a saved search view. Set deleteRefinedTurns to true to also remove the refined turns referenced by this view (useful for purging low-quality refined data).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          key: { type: 'string', description: 'Search view file key (e.g. search-abc123.json without extension)' },
+          deleteRefinedTurns: {
+            type: 'boolean',
+            description: 'If true, also delete all refined turns referenced by this view.',
+          },
+        },
+        required: ['key'],
+      },
+      handler: adaptHandler(handleDeleteSearchView),
     },
     {
       name: 'load_turn_context',

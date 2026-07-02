@@ -152,7 +152,7 @@ async function testStaticFallback() {
     const res = await fetch(`${url}/`);
     assert(res.ok, `static fallback failed: ${res.status}`);
     const text = await res.text();
-    assert(text.includes('<!doctype html>') && text.includes('Memory Vis'));
+    assert(text.includes('<!doctype html>') && text.includes('Kimi Memory'));
   } finally {
     stop();
     cleanup();

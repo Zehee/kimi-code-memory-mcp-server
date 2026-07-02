@@ -3,18 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Memory Vis</title>
+  <title>Kimi Memory</title>
   <link rel="stylesheet" href="/kimi-theme.css" />
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
   <div id="app" class="app">
-    <aside class="sidebar-rail" id="rail"></aside>
     <aside class="sidebar" id="sidebar">
-      <div class="sidebar-header">
-        <div class="brand">Memory Vis</div>
-        <button class="sidebar-collapse-btn" id="collapseBtn" title="Collapse sidebar">◀</button>
-      </div>
+      <div class="sidebar-collapsed-top" id="sidebarCollapsedTop"></div>
+      <div class="sidebar-header" id="sidebarHeader"></div>
       <nav class="sidebar-nav" id="sidebarNav"></nav>
       <div class="sidebar-footer" id="sidebarFooter"></div>
     </aside>
@@ -23,6 +20,6 @@
       <div class="content" id="content"></div>
     </main>
   </div>
-  <script src="/app.js"></script>
+  <script type="module" src="/app.js"></script>
 </body>
 </html>

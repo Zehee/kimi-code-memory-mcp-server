@@ -69,6 +69,12 @@ export class RefinedManager {
     return this.store.listRecentTurns(limit);
   }
 
+  async deleteRefinedTurns(refs: Array<{ sessionId: string; turnId: number }>): Promise<number> {
+    return this.mutex.runExclusive(() => {
+      return this.store.deleteRefinedTurns(refs);
+    });
+  }
+
   close(): void {
     this.store.close();
   }

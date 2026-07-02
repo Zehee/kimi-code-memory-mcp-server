@@ -19,6 +19,8 @@ A local stdio MCP server that gives [Kimi Code CLI](https://github.com/MoonshotA
 - **Theme tracing** — associate conversation turns and memories with themes, then trace their evolution.
 - **Refined turn summaries** — reusable turn-level atomic summaries shared across themes.
 - **Rebuilding index** — `index.json` is a cache; `.md` files are the source of truth.
+- **Theme & search-view deletion** — remove low-quality themes or saved search views, optionally purging their refined turns.
+- **Dashboard enhancements** — dynamic workspace title, read-only Markdown viewer with lightweight rendering, delete actions.
 
 ## Theme Tracing
 
@@ -256,6 +258,9 @@ You can override the storage root with the `MEMORY_STORE_ROOT` environment varia
 | `tag_theme` | Associate a turn or memory with a theme |
 | `trace_theme` | Trace a theme's evolution |
 | `list_themes` | List themes |
+| `delete_theme` | Delete a theme association file |
+| `list_search_views` | List saved search views |
+| `delete_search_view` | Delete a saved search view (optionally purge referenced refined turns) |
 | `open_memory_dashboard` | Open the memory dashboard in the browser |
 | `refine_session_turns` | Generate refined turn summaries |
 
@@ -268,6 +273,8 @@ npx kimi-memory-vis
 ```
 
 It starts on `http://127.0.0.1:58628` and opens the browser automatically.
+
+The dashboard now renders Markdown documents in read-only mode by default; click **Edit** to modify. Other improvements include a scrollable Markdown preview, dynamic page title using the workspace folder name, and delete actions for themes and search views.
 
 To auto-start the dashboard when the MCP server starts:
 

@@ -78,6 +78,11 @@ export interface ListSearchViewsArgs {
   limit?: number;
 }
 
+export interface DeleteSearchViewArgs {
+  key: string;
+  deleteRefinedTurns?: boolean;
+}
+
 export interface LoadTurnContextArgs {
   references: unknown[];
 }
@@ -94,6 +99,10 @@ export interface TagThemeArgs {
 export interface TraceThemeArgs {
   theme: string;
   includeTurnContent?: boolean;
+}
+
+export interface DeleteThemeArgs {
+  theme: string;
 }
 
 export interface RefineSessionTurnsArgs {

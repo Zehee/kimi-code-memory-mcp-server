@@ -19,11 +19,11 @@ export default async function runTests(): Promise<void> {
 
   const { toolSchemas, dispatch } = createTools(mockCtx);
 
-  assert.strictEqual(toolSchemas.length, 21, 'should expose exactly 21 tools');
+  assert.strictEqual(toolSchemas.length, 23, 'should expose exactly 23 tools');
 
   const names = toolSchemas.map((t) => t.name);
   const uniqueNames = new Set(names);
-  assert.strictEqual(uniqueNames.size, 21, 'all tool names should be unique');
+  assert.strictEqual(uniqueNames.size, 23, 'all tool names should be unique');
 
   const expectedTools = new Set([
     'remember',
@@ -37,10 +37,12 @@ export default async function runTests(): Promise<void> {
     'load_more_context',
     'search_context',
     'list_search_views',
+    'delete_search_view',
     'load_turn_context',
     'tag_theme',
     'trace_theme',
     'list_themes',
+    'delete_theme',
     'refine_session_turns',
     'get_current_workspace',
     'open_memory_dashboard',

@@ -208,6 +208,20 @@ export class RefinedStore {
     return rows.map((r) => rowToTurn(r));
   }
 
+  deleteRefinedTurns(refs: Array<{ sessionId: string; turnId: number }>): number {
+    if (refs.length === 0) return 0;
+    const deleteStmt = this.db.prepare('DELETE FROM refined_turns WHERE session_id = ? AND turn_id = ?');
+    const transaction = this.db.transaction(() => {
+      let count = 0;
+      for (const ref of refs) {
+        const info = deleteStmt.run(ref.sessionId, ref.turnId);
+        count += info.changes;
+      }
+      return count;
+    });
+    return transaction();
+  }
+
   close(): void {
     this.db.close();
   }

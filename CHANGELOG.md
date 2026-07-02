@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.2.0] - 2026-06-25
+
+### Added
+- MCP tools: `delete_theme` and `delete_search_view` (with optional `deleteRefinedTurns` cascade).
+- Visual dashboard: delete actions for themes and search views, read-only default for Markdown editors, Edit/Delete buttons in composer headers, scrollable Markdown preview, dynamic page title using workspace folder name, lightweight Markdown rendering.
+- Frontend refactor: dashboard `app.js` split into ES modules (`state.js`, `api.js`, `utils/helpers.js`, `utils/markdown.js`).
+
+### Changed
+- Markdown documents in the dashboard now render in read-only mode by default; editing requires clicking the Edit button.
+- Breadcrumbs root label now shows the actual workspace folder name.
+
 ## [0.1.2] - 2026-06-25
 
 ### Added
@@ -48,7 +61,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved `scripts/session-search-verify.mjs` with CLI/env args, safer parsing, and cleanup.
 - Updated READMEs to reflect npm-published status and setup command.
 
-[Unreleased]: https://github.com/Zehee/kimi-code-memory-mcp-server/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/Zehee/kimi-code-memory-mcp-server/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.2.0
 [0.1.2]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.1.2
 [0.1.1]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.1.0

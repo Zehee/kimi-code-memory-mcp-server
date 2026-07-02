@@ -500,3 +500,54 @@ export function updateTheme(
   ctx.themeManager.saveTheme(themeName, association);
   return { ok: true };
 }
+
+export function deleteTheme(ctx: Ctx, themeName: string): { ok: boolean; error?: string } {
+  const deleted = ctx.themeManager.deleteTheme(themeName);
+  if (!deleted) {
+    return { ok: false, error: 'Theme not found' };
+  }
+  return { ok: true };
+}
+
+export async function deleteSearchView(
+  ctx: Ctx,
+  key: string,
+  deleteRefinedTurns = false,
+): Promise<{ ok: boolean; error?: string; deletedRefinedTurns?: number }> {
+  const filePath = path.join(ctx.storeRoot, 'searches', `${key}.json`);
+  if (!fs.existsSync(filePath)) {
+    return { ok: false, error: 'Search view not found' };
+  }
+
+  const refinedTurnsToDelete: Array<{ sessionId: string; turnId: number }> = [];
+  if (deleteRefinedTurns) {
+    try {
+      const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      const clusters = Array.isArray(data.clusters) ? data.clusters : [];
+      const seen = new Set<string>();
+      for (const cluster of clusters) {
+        const members = Array.isArray(cluster.members) ? cluster.members : [];
+        for (const m of members) {
+          if (m && typeof m.sessionId === 'string' && typeof m.turnId === 'number') {
+            const id = `${m.sessionId}:${m.turnId}`;
+            if (!seen.has(id)) {
+              seen.add(id);
+              refinedTurnsToDelete.push({ sessionId: m.sessionId, turnId: m.turnId });
+            }
+          }
+        }
+      }
+    } catch {
+      // Fall through to deleting the file even if parsing fails.
+    }
+  }
+
+  fs.unlinkSync(filePath);
+
+  let deletedRefinedTurns = 0;
+  if (deleteRefinedTurns && refinedTurnsToDelete.length > 0) {
+    deletedRefinedTurns = await ctx.refinedManager.deleteRefinedTurns(refinedTurnsToDelete);
+  }
+
+  return { ok: true, deletedRefinedTurns };
+}

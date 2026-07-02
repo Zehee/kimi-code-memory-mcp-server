@@ -69,6 +69,13 @@ export class ThemeManager {
     fs.renameSync(tmpPath, filePath);
   }
 
+  deleteTheme(theme: string): boolean {
+    const filePath = this.themeFilePath(theme);
+    if (!fs.existsSync(filePath)) return false;
+    fs.unlinkSync(filePath);
+    return true;
+  }
+
   listThemes(): string[] {
     if (!fs.existsSync(this.themesRoot)) return [];
     return fs

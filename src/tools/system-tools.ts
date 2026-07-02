@@ -31,6 +31,8 @@ const ESSENCE = {
     '不强制模板：Agent 自行决定最终结构和章节。',
     '大小提示：工具校验并提示是否超过 15KB，但不阻止保存。',
     '工具不碰 memory/ 源文件：Agent 整理后如需清理或重写源记忆，自行调用 delete / remember。',
+    '剔除过时内容：整理时识别并移除已被后续决策覆盖、已失效或仅具临时价值的记忆。',
+    '生成精要后，你可以重新组织 memory/ 区的文件内容和目录结构（重命名、移动、合并、拆分），并自行调用 remember / move / delete 等工具执行。',
   ].join('\n'),
 };
 
@@ -164,6 +166,7 @@ export function createSystemTools(ctx: Ctx): ToolDefinition[] {
   async function handleBootstrapWorkspace(args: {
     detailed_rounds?: number;
     summary_rounds?: number;
+    force?: boolean;
   }) {
     await indexDao.reconcileIndex();
 
@@ -171,9 +174,35 @@ export function createSystemTools(ctx: Ctx): ToolDefinition[] {
     const existingEssence = loadEssenceFile();
     const config = loadMcpConfig();
 
+    // Defensive: if the host already loaded this session's turns (e.g. `kimi web`
+    // or `kimi -c`), skip returning them again to avoid context duplication.
+    let recentContext:
+      | (typeof contextData.recentContext & {
+          skipped?: boolean;
+          reason?: string;
+        })
+      | null = contextData.recentContext;
+    if (
+      recentContext &&
+      args.force !== true &&
+      (recentContext.totalTurns > 0 ||
+        recentContext.detailedRounds.length > 0 ||
+        recentContext.summaryRounds.length > 0)
+    ) {
+      recentContext = {
+        ...recentContext,
+        detailedRounds: [],
+        summaryRounds: [],
+        compactionSummaries: [],
+        skipped: true,
+        reason:
+          'Session already has turns; skipping detailed/summary rounds to avoid duplicating host-loaded context.',
+      };
+    }
+
     return toolResult({
       workspace: contextData.workspace,
-      recentContext: contextData.recentContext,
+      recentContext,
       essence: existingEssence
         ? {
             found: true,
@@ -272,6 +301,11 @@ export function createSystemTools(ctx: Ctx): ToolDefinition[] {
           summary_rounds: {
             type: 'number',
             description: 'Number of preceding rounds to return as summaries.',
+          },
+          force: {
+            type: 'boolean',
+            description:
+              'If true, return recent context even when the current session already has turns.',
           },
         },
       },

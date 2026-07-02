@@ -18,6 +18,8 @@ import {
   getMemoryContent,
   saveEssence,
   updateTheme,
+  deleteTheme,
+  deleteSearchView,
   listMemoryFolders,
   writeMemory,
   deleteMemory,
@@ -169,6 +171,101 @@ export function createApp(ctx: Ctx): Hono {
     return c.json(getMemories(ctx));
   });
 
+  app.get('/api/searches', (c) => {
+    const dir = path.join(ctx.storeRoot, 'searches');
+    if (!fs.existsSync(dir)) {
+      return c.json([]);
+    }
+    const entries = fs
+      .readdirSync(dir)
+      .filter((f) => f.endsWith('.json'))
+      .map((f) => {
+        try {
+          const raw = fs.readFileSync(path.join(dir, f), 'utf8');
+          const data = JSON.parse(raw);
+          const clusters = Array.isArray(data.clusters) ? data.clusters : [];
+          return {
+            key: data.key || f.replace(/\.json$/, ''),
+            query: data.query || '',
+            createdAt: data.createdAt || '',
+            resultCount: clusters.length,
+          };
+        } catch {
+          return null;
+        }
+      })
+      .filter((e): e is NonNullable<typeof e> => e !== null)
+      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    return c.json(entries);
+  });
+
+  app.get('/api/searches/:key', (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const filePath = path.join(ctx.storeRoot, 'searches', `${key}.json`);
+    if (!fs.existsSync(filePath)) {
+      return c.json({ error: 'Search view not found' }, 404);
+    }
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const clusters = Array.isArray(data.clusters) ? data.clusters : [];
+    const seen = new Set<string>();
+    const turns: Array<{
+      sessionId: string;
+      turnId: number;
+      clusterId: number;
+      isHit: boolean;
+      summary: string;
+      facts: string[];
+      notes: string[];
+      timestamp: string;
+    }> = [];
+
+    clusters.forEach((cluster: { hitTurnId?: number; members?: Array<{ sessionId: string; turnId: number }> }, clusterIdx: number) => {
+      const members = Array.isArray(cluster.members) ? cluster.members : [];
+      members.forEach((m) => {
+        const id = `${m.sessionId}:${m.turnId}`;
+        if (seen.has(id)) return;
+        seen.add(id);
+        const refined = ctx.refinedManager.loadRefinedTurn(m.sessionId, m.turnId);
+        turns.push({
+          sessionId: m.sessionId,
+          turnId: m.turnId,
+          clusterId: clusterIdx,
+          isHit: cluster.hitTurnId === m.turnId,
+          summary: refined?.summary || '',
+          facts: refined?.facts || [],
+          notes: refined?.notes || [],
+          timestamp: refined?.timestamp || data.createdAt || '',
+        });
+      });
+    });
+
+    turns.sort((a, b) => {
+      const sa = String(a.sessionId);
+      const sb = String(b.sessionId);
+      if (sa !== sb) return sa.localeCompare(sb);
+      return (a.turnId ?? 0) - (b.turnId ?? 0);
+    });
+
+    return c.json({
+      key,
+      query: data.query || '',
+      createdAt: data.createdAt || '',
+      totalHits: turns.length,
+      clusterCount: clusters.length,
+      turns,
+    });
+  });
+
+  app.get('/api/refined-turn/:sessionId/:turnId', (c) => {
+    const sessionId = decodeURIComponent(c.req.param('sessionId'));
+    const turnId = parseInt(c.req.param('turnId'), 10);
+    const turn = ctx.refinedManager.loadRefinedTurn(sessionId, turnId);
+    if (!turn) {
+      return c.json({ error: 'Turn not found' }, 404);
+    }
+    return c.json(turn);
+  });
+
   app.get('/api/folders', (c) => {
     return c.json(listMemoryFolders(ctx));
   });
@@ -263,6 +360,19 @@ export function createApp(ctx: Ctx): Hono {
     }
 
     const result = updateTheme(ctx, theme, patch);
+    return c.json(result, result.ok ? 200 : 404);
+  });
+
+  app.delete('/api/themes/:theme', async (c) => {
+    const theme = decodeURIComponent(c.req.param('theme'));
+    const result = deleteTheme(ctx, theme);
+    return c.json(result, result.ok ? 200 : 404);
+  });
+
+  app.delete('/api/searches/:key', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const deleteRefinedTurns = c.req.query('deleteRefinedTurns') === 'true';
+    const result = await deleteSearchView(ctx, key, deleteRefinedTurns);
     return c.json(result, result.ok ? 200 : 404);
   });
 

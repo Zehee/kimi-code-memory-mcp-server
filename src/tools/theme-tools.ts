@@ -4,7 +4,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import type { Ctx, RefineSessionTurnsArgs, TagThemeArgs, TraceThemeArgs } from '../types.js';
+import type { Ctx, DeleteThemeArgs, RefineSessionTurnsArgs, TagThemeArgs, TraceThemeArgs } from '../types.js';
 import type { ToolDefinition } from './types.js';
 import { adaptHandler } from './types.js';
 import { sanitizeFolder, sanitizeKey, toTitle } from '../utils/validation.js';
@@ -153,6 +153,18 @@ export function createThemeTools(ctx: Ctx): ToolDefinition[] {
     return toolResult({ themes: themeManager.listThemes() });
   }
 
+  function handleDeleteTheme(args: DeleteThemeArgs) {
+    const theme = typeof args.theme === 'string' ? args.theme.trim() : '';
+    if (!theme) {
+      return toolResult({ success: false, error: 'Missing or invalid "theme"' }, true);
+    }
+    const deleted = themeManager.deleteTheme(theme);
+    if (!deleted) {
+      return toolResult({ success: false, error: 'Theme not found' }, true);
+    }
+    return toolResult({ success: true, theme });
+  }
+
   async function handleRefineSessionTurns(args: RefineSessionTurnsArgs) {
     let session = null;
     const requestedSessionId = args.sessionId || args.session_id;
@@ -255,6 +267,18 @@ export function createThemeTools(ctx: Ctx): ToolDefinition[] {
       description: 'List all theme identifiers stored in the current workspace.',
       inputSchema: { type: 'object', properties: {} },
       handler: adaptHandler(handleListThemes),
+    },
+    {
+      name: 'delete_theme',
+      description: 'Delete a theme association file. This does not delete the refined turns or memories referenced by the theme.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          theme: { type: 'string', description: 'Theme identifier to delete' },
+        },
+        required: ['theme'],
+      },
+      handler: adaptHandler(handleDeleteTheme),
     },
     {
       name: 'refine_session_turns',
