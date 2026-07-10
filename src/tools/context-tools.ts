@@ -1,5 +1,5 @@
 /**
- * Context recovery tools: load_workspace_context, load_more_context, search_context, load_turn_context.
+ * Context recovery tools: load_more_context, search_context, load_turn_context.
  */
 
 import type {
@@ -17,6 +17,7 @@ import type { SearchMatch, TurnReference, WireTurn } from '../context/wire-conte
 import {
   getCurrentSessionWirePath,
   findAllWorkspaceSessions,
+  findPreviousSession,
   parseWireFile,
   buildContextWindow,
   loadMoreRounds,
@@ -46,6 +47,7 @@ export async function buildWorkspaceContext(
     detailedRounds: unknown[];
     summaryRounds: unknown[];
     compactionSummaries: unknown[];
+    loadedFromPrevious: boolean;
   } | null;
 }> {
   const { cwd, workspaceId, storeRoot } = ctx;
@@ -57,17 +59,22 @@ export async function buildWorkspaceContext(
     overrides.summaryRounds = Math.max(0, Math.floor(args.summary_rounds));
   }
 
-  const session = getCurrentSessionWirePath();
+  // Context resumption always targets the most recent previous session: at
+  // bootstrap time the current session is brand new and carries no usable
+  // history of its own, so we rebuild the workspace context from the session
+  // that came before it.
+  const previous = findPreviousSession();
   let recentContext = null;
-  if (session) {
-    const { turns, compactionSummaries } = await parseWireFile(session.wire);
+  if (previous) {
+    const { turns, compactionSummaries } = await parseWireFile(previous.wire);
     const window = buildContextWindow(turns, overrides);
     recentContext = {
-      sessionId: session.sessionId,
+      sessionId: previous.sessionId,
       totalTurns: window.totalTurns,
       detailedRounds: window.detailedRounds,
       summaryRounds: window.summaryRounds,
       compactionSummaries: compactionSummaries.slice(-3),
+      loadedFromPrevious: true,
     };
   }
 
@@ -282,10 +289,6 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
         .sort((a, b) => a - b)
         .map((turnId) => ({ sessionId, turnId })),
     };
-  }
-
-  function handleLoadWorkspaceContext(args: LoadWorkspaceContextArgs) {
-    return buildWorkspaceContext(ctx, args).then((data) => toolResult(data));
   }
 
   async function handleLoadMoreContext(args: LoadMoreContextArgs) {
@@ -618,25 +621,6 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
   }
 
   const tools: ToolDefinition[] = [
-    {
-      name: 'load_workspace_context',
-      description:
-        'Load the workspace context for session resumption: recent conversation parsed from the active wire.jsonl.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          detailed_rounds: {
-            type: 'number',
-            description: 'Number of most recent rounds to return in full detail.',
-          },
-          summary_rounds: {
-            type: 'number',
-            description: 'Number of preceding rounds to return as summaries.',
-          },
-        },
-      },
-      handler: adaptHandler(handleLoadWorkspaceContext),
-    },
     {
       name: 'load_more_context',
       description:

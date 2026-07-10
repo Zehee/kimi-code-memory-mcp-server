@@ -252,7 +252,6 @@ Agent：[调用 mcp__kimi-memory__tag_theme] theme=cache-design
 | `organize_memories` | 将 `memory/` 提炼为 `essence/essence.md` |
 | `sync_workspace_index` | 从磁盘重建 `index.json` |
 | `bootstrap_workspace` | 加载上下文、精要和记忆树 |
-| `load_workspace_context` | 加载最近对话上下文 |
 | `load_more_context` | 加载更早的对话轮次 |
 | `search_context` | 跨所有会话 wire 搜索 |
 | `load_turn_context` | 加载指定轮次详情 |

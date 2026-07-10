@@ -8,7 +8,7 @@ import type { Ctx, OrganizeArgs, SyncWorkspaceIndexArgs } from '../types.js';
 import type { ToolDefinition } from './types.js';
 import { adaptHandler } from './types.js';
 import { ESSENCE_SIZE_LIMIT } from '../config.js';
-import { loadMcpConfig } from '../context/wire-context.js';
+import { getCurrentSessionWirePath, loadMcpConfig, parseWireFile } from '../context/wire-context.js';
 import { buildWorkspaceContext } from './context-tools.js';
 import { stringifyFrontmatter } from '../utils/frontmatter.js';
 import { atomicWriteFile } from '../utils/paths.js';
@@ -170,38 +170,29 @@ export function createSystemTools(ctx: Ctx): ToolDefinition[] {
   }) {
     await indexDao.reconcileIndex();
 
-    const contextData = await buildWorkspaceContext(ctx, args);
     const existingEssence = loadEssenceFile();
     const config = loadMcpConfig();
 
-    // Defensive: if the host already loaded this session's turns (e.g. `kimi web`
-    // or `kimi -c`), skip returning them again to avoid context duplication.
-    let recentContext:
-      | (typeof contextData.recentContext & {
-          skipped?: boolean;
-          reason?: string;
-        })
-      | null = contextData.recentContext;
-    if (
-      recentContext &&
-      args.force !== true &&
-      (recentContext.totalTurns > 0 ||
-        recentContext.detailedRounds.length > 0 ||
-        recentContext.summaryRounds.length > 0)
-    ) {
-      recentContext = {
-        ...recentContext,
-        detailedRounds: [],
-        summaryRounds: [],
-        compactionSummaries: [],
-        skipped: true,
-        reason:
-          'Session already has turns; skipping detailed/summary rounds to avoid duplicating host-loaded context.',
-      };
+    // Resume context only for a brand-new session (turn count <= 1). When the
+    // host has already continued the session (`kimi web`, `kimi -c`) the
+    // current session holds multiple turns and the host has loaded that
+    // history, so we leave recentContext empty to avoid duplicating it.
+    // `force` bypasses this guard and resumes from the previous session
+    // regardless. essence / memoryIndexTree / notesRefs are always returned.
+    let recentContext = null;
+    let currentTurnCount = 0;
+    const currentSession = getCurrentSessionWirePath();
+    if (currentSession) {
+      const { turns } = await parseWireFile(currentSession.wire);
+      currentTurnCount = turns.length;
+    }
+    if (args.force === true || currentTurnCount <= 1) {
+      const contextData = await buildWorkspaceContext(ctx, args);
+      recentContext = contextData.recentContext;
     }
 
     return toolResult({
-      workspace: contextData.workspace,
+      workspace: { cwd, workspaceId, storePath: storeRoot },
       recentContext,
       essence: existingEssence
         ? {

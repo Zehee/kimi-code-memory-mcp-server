@@ -33,3 +33,6 @@ dist/
 
 # Workspace agent-memory data (per-workspace, not project source)
 memory/
+
+# Local deploy script (machine-specific, do not publish)
+/scripts/deploy-local.mjs

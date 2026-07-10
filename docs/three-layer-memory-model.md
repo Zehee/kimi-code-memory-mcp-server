@@ -128,7 +128,7 @@ A single refined turn can be referenced by multiple themes. This avoids duplicat
 |---|---|
 | Continuous cognition | `bootstrap_workspace`, `organize_memories` |
 | Persistent knowledge | `remember`, `recall`, `search`, `list`, `move`, `delete`, `sync_workspace_index` |
-| Context & themes | `load_workspace_context`, `load_more_context`, `search_context`, `refine_session_turns`, `load_turn_context`, `tag_theme`, `trace_theme`, `list_themes` |
+| Context & themes | `load_more_context`, `search_context`, `refine_session_turns`, `load_turn_context`, `tag_theme`, `trace_theme`, `list_themes` |
 
 ---
 

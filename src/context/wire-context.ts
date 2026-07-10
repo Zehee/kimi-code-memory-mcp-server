@@ -264,6 +264,30 @@ export function findAllWorkspaceSessions(): WireSession[] {
   return sessions;
 }
 
+/**
+ * Find the most recently active session in the current workspace, excluding the
+ * current session. Used to resume context from the previous session when the
+ * current one is brand new and has no usable history of its own.
+ */
+export function findPreviousSession(): WireSession | null {
+  const current = getCurrentSessionWirePath();
+  const currentId = current?.sessionId;
+  const candidates = findAllWorkspaceSessions()
+    .filter((s) => s.sessionId !== currentId)
+    .map((s) => {
+      let mtime = 0;
+      try {
+        mtime = fs.statSync(s.wire).mtimeMs;
+      } catch {
+        mtime = 0;
+      }
+      return { ...s, mtime };
+    })
+    .filter((s) => (s.mtime ?? 0) > 0)
+    .sort((a, b) => (b.mtime ?? 0) - (a.mtime ?? 0));
+  return candidates[0] || null;
+}
+
 function truncate(text: unknown, maxLen: number): string {
   if (text === null || text === undefined) return '';
   const s = String(text);

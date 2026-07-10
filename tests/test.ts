@@ -722,16 +722,6 @@ async function testResourcesRead() {
   });
 }
 
-async function testLoadWorkspaceContext() {
-  await withClient(async (client) => {
-    const result = parseJsonResult(
-      await client.callTool({ name: 'load_workspace_context', arguments: {} }),
-    );
-    assert(result.workspace.workspaceId.startsWith('workspace-'));
-    assert(result.workspace.storePath);
-  });
-}
-
 async function testLoadMoreContextInvalid() {
   await withClient(async (client) => {
     const result = parseJsonResult(
@@ -821,7 +811,6 @@ const tests = [
   testPromptsGet,
   testResourcesList,
   testResourcesRead,
-  testLoadWorkspaceContext,
   testLoadMoreContextInvalid,
   testSetupIntegration,
 ];

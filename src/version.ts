@@ -6,4 +6,4 @@
  * during protocol initialization and must match the repository (package)
  * version unless explicitly noted otherwise.
  */
-export const VERSION = '0.2.0';
+export const VERSION = '1.0.0';

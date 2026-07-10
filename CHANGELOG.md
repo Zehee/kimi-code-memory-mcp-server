@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-07-10
+
+### Removed
+- **BREAKING** MCP tool `load_workspace_context` removed. Context resumption is now handled entirely by `bootstrap_workspace`.
+
+### Changed
+- **BREAKING** `bootstrap_workspace` resumes context from the most recent previous session only when the current session is brand new (turn count <= 1). On continued sessions (`kimi -c`, `kimi web`) it returns no conversation context to avoid duplicating host-loaded history; `essence`, `memoryIndexTree`, and `notesRefs` are always returned.
+
 ## [0.2.0] - 2026-06-25
 
 ### Added

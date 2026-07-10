@@ -68,7 +68,7 @@ This document explains how Kimi Code Memory MCP Server is structured, how data f
 | `src/config.ts` | Default paths, environment variable handling (`MEMORY_STORE_ROOT`, `MEMORY_SESSIONS_ROOT`, `KIMI_CODE_HOME`). |
 | `src/tools/index.ts` | Tool schemas, validation, and dispatch. |
 | `src/tools/memory-tools.ts` | `remember`, `recall`, `search`, `list`, `list_tags`, `delete`, `move`. |
-| `src/tools/context-tools.ts` | `load_workspace_context`, `load_more_context`, `search_context`, `load_turn_context`. |
+| `src/tools/context-tools.ts` | `load_more_context`, `search_context`, `load_turn_context`. |
 | `src/tools/theme-tools.ts` | `tag_theme`, `trace_theme`, `list_themes`, `refine_session_turns`. |
 | `src/tools/system-tools.ts` | `organize_memories`, `sync_workspace_index`, `bootstrap_workspace`, `get_current_workspace`. |
 | `src/dao/index.ts` | `index.json` v3-kv DAO with structure-hash consistency check. |

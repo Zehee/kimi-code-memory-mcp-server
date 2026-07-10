@@ -251,7 +251,6 @@ You can override the storage root with the `MEMORY_STORE_ROOT` environment varia
 | `organize_memories` | Distill `memory/` into `essence/essence.md` |
 | `sync_workspace_index` | Rebuild `index.json` from disk |
 | `bootstrap_workspace` | Load context, essence, and memory tree |
-| `load_workspace_context` | Load recent conversation context |
 | `load_more_context` | Load older conversation rounds |
 | `search_context` | Search across all session wires |
 | `load_turn_context` | Load specific turn details |

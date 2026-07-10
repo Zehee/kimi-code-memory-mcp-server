@@ -141,7 +141,7 @@ graph LR
 要点：
 
 - `server.ts` 与 `vis-cli.ts` 都装配同一套 `Ctx`；区别只在传输层（stdio MCP vs. 独立 Hono HTTP）。
-- `tools/system-tools.ts` 复用 `tools/context-tools.ts` 导出的 `buildWorkspaceContext`，避免 `bootstrap_workspace` 与 `load_workspace_context` 两份实现漂移。
+- `tools/system-tools.ts` 的 `bootstrap_workspace` 调用 `tools/context-tools.ts` 导出的 `buildWorkspaceContext`；后者统一从最近的上一个 session 重建上下文，避免实现漂移。
 - `dao/index.ts` 的所有写操作都通过 `IndexStore.runExclusive`（`utils/mutex.ts`）串行化，保证 `index.json` 读写互斥。
 - `context/wire-context.ts` 仅在类型层面引用 `RefinedManager`（搜索时可合并已精炼结果），运行期由工具层注入实例，避免循环依赖。
 
@@ -158,7 +158,6 @@ flowchart LR
   end
 
   subgraph CTXT["context-tools"]
-    C1["load_workspace_context"]
     C2["load_more_context"]
     C3["search_context"]
     C4["load_turn_context"]
@@ -198,7 +197,6 @@ flowchart LR
   M5 --> MS
   M5 --> IDX
 
-  C1 --> WIRE
   C2 --> WIRE
   C3 --> WIRE
   C3 --> RM
@@ -233,7 +231,6 @@ flowchart LR
 | search | ✓ 读（兜底） | ✓ 读 | | | | |
 | list / list_tags | | ✓ 读 | | | | |
 | delete / move | ✓ 写 | ✓ 写 | | | | |
-| load_workspace_context | | | | | ✓ 读 | |
 | load_more_context | | | | | ✓ 读 | |
 | search_context | | | | ✓ 读/写 | ✓ 读 | |
 | load_turn_context | | | | | ✓ 读 | |
@@ -424,18 +421,23 @@ sequenceDiagram
   participant FS as storeRoot
 
   H ->> IDX: reconcileIndex 启动即对齐索引与文件
-  H ->> BC: buildWorkspaceContext 传入 detailed 与 summary 轮数
-  BC ->> W: getCurrentSessionWirePath
-  alt 找到当前 session wire
-    BC ->> W: parseWireFile 得 turns 与 compactionSummaries
-    BC ->> W: buildContextWindow 取详细轮与摘要轮
-    BC -->> H: 返回 recentContext
-  else 无 wire
-    BC -->> H: recentContext 为 null
+  H ->> W: getCurrentSessionWirePath 取当前 session
+  H ->> W: parseWireFile 当前 session 得 turn 数
+  alt 全新会话（turn <= 1）或 force
+    H ->> BC: buildWorkspaceContext 传入 detailed 与 summary 轮数
+    BC ->> W: findPreviousSession 取最近的上一个 session
+    alt 找到上一个 session wire
+      BC ->> W: parseWireFile 得 turns 与 compactionSummaries
+      BC ->> W: buildContextWindow 取详细轮与摘要轮
+      BC -->> H: 返回 recentContext（loadedFromPrevious）
+    else 无上一个 session
+      BC -->> H: recentContext 为 null
+    end
+  else 续接会话（turn > 1）
+    Note over H: 宿主已加载历史，跳过 buildWorkspaceContext，recentContext 保持 null，避免重复
   end
   H ->> FS: 读取 essence 文件
   H ->> W: loadMcpConfig 取 recentChangeLimit
-  Note over H: 若当前 session 已有轮次且未 force 则清空详细轮并标记 skipped 避免与宿主已注入上下文重复
   H ->> IDX: buildMemoryIndexTree 并标记 new
   H ->> IDX: listRefs notes
   H -->> H: 返回 workspace recentContext essence memoryIndexTree notesRefs 五件套
@@ -444,7 +446,7 @@ sequenceDiagram
 要点：
 
 - 返回的「五件套」正好对应 AGENTS.md 启动协议要求内化的 `essence` / `memoryIndexTree` / `recentContext` / `notesRefs`。
-- **去重保护**：当宿主（`kimi web` / `kimi -c`）已经把本会话轮次装进上下文时，`bootstrap_workspace` 默认不再回灌详细轮，除非 `force:true`。
+- **去重保护**：当宿主（`kimi web` / `kimi -c`）已续接并加载本会话历史时（当前 session turn 数 > 1），`bootstrap_workspace` 不再调用 `buildWorkspaceContext`、`recentContext` 返回空，避免与宿主上下文重复；仅全新会话（turn ≤ 1）或 `force:true` 时才从最近的上一个 session 恢复。
 
 ### 2.6 `search_context` 跨会话搜索 + 聚簇 + 按需精炼（核心）
 
