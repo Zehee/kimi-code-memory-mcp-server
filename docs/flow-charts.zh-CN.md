@@ -289,31 +289,31 @@ flowchart TD
 sequenceDiagram
   autonumber
   participant CLI as Kimi Code CLI
-  participant S as server.ts (module 装载期)
-  participant M as main()
-  participant MCP as MCP Server (sdk)
-  participant VIS as vis/auto-start
+  participant S as server 模块装载期
+  participant M as main 函数
+  participant MCP as MCP Server
+  participant VIS as vis auto-start
 
   CLI ->> S: 以 stdio 启动进程
   Note over S: 模块顶层同步执行
-  S ->> S: cwd = process.cwd(); workspaceId = computeWorkspaceId(cwd)
-  S ->> S: storeRoot = join(getStoreRoot(), workspaceId)
-  S ->> S: mkdir -p memory/notes/essence/themes/refined
-  S ->> S: new IndexDao / MemoryStore / ThemeManager / RefinedManager
-  S ->> S: 装配 Ctx; createTools(ctx); createResources(ctx)
-  S ->> MCP: new Server({name, version}, capabilities: tools+prompts+resources)
-  S ->> MCP: setRequestHandler ×6<br/>(ListTools/CallTool/ListPrompts/GetPrompt/ListResources/ReadResource)
+  S ->> S: 计算 cwd 与 workspaceId
+  S ->> S: 计算 storeRoot 路径
+  S ->> S: 创建 memory notes essence themes refined 目录
+  S ->> S: 实例化 IndexDao MemoryStore ThemeManager RefinedManager
+  S ->> S: 装配 Ctx 并创建 tools 与 resources
+  S ->> MCP: 创建 Server 并声明 tools prompts resources 能力
+  S ->> MCP: 注册六个处理器 ListTools CallTool ListPrompts GetPrompt ListResources ReadResource
 
-  CLI ->> M: 调用 main()
-  M ->> MCP: server.connect(new StdioServerTransport())
-  M ->> VIS: maybeStartVisServer(ctx)
-  alt KIMI_MEMORY_AUTO_VIS=1 且端口可用
-    VIS -->> M: {started:true, url}
-    M ->> M: 动态 import('open') 打开浏览器; stderr 打印 url
-  else 未开启 / 失败
-    VIS -->> M: {started:false, error?}
+  CLI ->> M: 调用 main
+  M ->> MCP: 连接 StdioServerTransport
+  M ->> VIS: maybeStartVisServer
+  alt KIMI_MEMORY_AUTO_VIS 为 1 且端口可用
+    VIS -->> M: 返回已启动与 url
+    M ->> M: 动态打开浏览器 并 stderr 打印 url
+  else 未开启或失败
+    VIS -->> M: 返回未启动或 error
   end
-  Note over M: 注册 SIGINT/SIGTERM → stopVisServer() + exit(0)<br/>main 抛错 → stderr + exit(1)
+  Note over M: 注册 SIGINT 与 SIGTERM 以停止仪表盘并退出 main 抛错时写 stderr 并以 1 退出
 ```
 
 要点：
@@ -328,30 +328,30 @@ sequenceDiagram
 sequenceDiagram
   autonumber
   participant C as MCP Client
-  participant H as CallToolRequest handler<br/>(server.ts)
-  participant D as tools.dispatch(name,args)<br/>(tools/index.ts)
-  participant HD as adaptHandler(handleX)<br/>(tools/types.ts)
-  participant CTX as Ctx(managers/dao/context)
-  participant R as toolResult(...)
+  participant H as CallTool 处理器
+  participant D as tools dispatch
+  participant HD as adaptHandler
+  participant CTX as Ctx 上下文
+  participant R as toolResult
 
-  C ->> H: CallTool { name, arguments }
-  H ->> D: dispatch(name, arguments || {})
-  D ->> D: handler = handlers[name]
+  C ->> H: CallTool 请求 name 与 arguments
+  H ->> D: dispatch name 与 arguments
+  D ->> D: 按 name 查找 handler
   alt name 不存在
-    D -->> H: toolResult({error:"Unknown tool"}, true)
+    D -->> H: 返回 Unknown tool 错误
   else 存在
-    D ->> HD: await handler(args)
-    HD ->> CTX: 读写 MemoryStore / IndexDao /<br/>ThemeManager / RefinedManager / wire-context
-    CTX -->> HD: 数据
-    HD ->> R: toolResult(payload, isError?)
-    R -->> D: {content:[{type:text,text:json}], isError?}
+    D ->> HD: 调用 handler
+    HD ->> CTX: 读写 MemoryStore IndexDao ThemeManager RefinedManager wire-context
+    CTX -->> HD: 返回数据
+    HD ->> R: 包装为 toolResult
+    R -->> D: 返回 content 与 isError
     alt handler 抛异常
-      HD --x D: throw
-      D ->> R: 捕获 → toolResult({success:false,error}, true)
+      HD --x D: 抛出异常
+      D ->> R: 捕获并返回 success false 错误
     end
-    D -->> H: ToolResult
+    D -->> H: 返回 ToolResult
   end
-  H -->> C: JSON 响应（任何异常兜底为 isError 文本）
+  H -->> C: JSON 响应 任何异常都兜底为 isError 文本
 ```
 
 要点：
@@ -419,26 +419,26 @@ sequenceDiagram
   autonumber
   participant H as handleBootstrapWorkspace
   participant IDX as IndexDao
-  participant BC as buildWorkspaceContext<br/>(context-tools)
+  participant BC as buildWorkspaceContext
   participant W as wire-context
-  participant FS as {storeRoot}
+  participant FS as storeRoot
 
-  H ->> IDX: reconcileIndex()  // 启动即对齐索引与文件
-  H ->> BC: buildWorkspaceContext(ctx, {detailed_rounds, summary_rounds})
-  BC ->> W: getCurrentSessionWirePath()
+  H ->> IDX: reconcileIndex 启动即对齐索引与文件
+  H ->> BC: buildWorkspaceContext 传入 detailed 与 summary 轮数
+  BC ->> W: getCurrentSessionWirePath
   alt 找到当前 session wire
-    BC ->> W: parseWireFile(wire) → turns + compactionSummaries
-    BC ->> W: buildContextWindow(turns, overrides)
-    BC -->> H: recentContext{sessionId,totalTurns,<br/>detailedRounds,summaryRounds,compactionSummaries}
+    BC ->> W: parseWireFile 得 turns 与 compactionSummaries
+    BC ->> W: buildContextWindow 取详细轮与摘要轮
+    BC -->> H: 返回 recentContext
   else 无 wire
-    BC -->> H: recentContext = null
+    BC -->> H: recentContext 为 null
   end
-  H ->> FS: 读 essence/essence.md → existingEssence?
-  H ->> W: loadMcpConfig() → recentChangeLimit
-  Note over H: 防御：若当前 session 已有轮次且 force≠true，<br/>清空 detailed/summary/compaction 并标记 skipped，<br/>避免与宿主已注入的上下文重复
-  H ->> IDX: buildMemoryIndexTree(recentChangeLimit)  // 标记 [new]
-  H ->> IDX: listRefs('notes')
-  H -->> H: 返回 {workspace, recentContext, essence,<br/>memoryIndexTree, notesRefs}
+  H ->> FS: 读取 essence 文件
+  H ->> W: loadMcpConfig 取 recentChangeLimit
+  Note over H: 若当前 session 已有轮次且未 force 则清空详细轮并标记 skipped 避免与宿主已注入上下文重复
+  H ->> IDX: buildMemoryIndexTree 并标记 new
+  H ->> IDX: listRefs notes
+  H -->> H: 返回 workspace recentContext essence memoryIndexTree notesRefs 五件套
 ```
 
 要点：
