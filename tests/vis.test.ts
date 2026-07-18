@@ -1,3 +1,5 @@
+process.env.KIMI_MEMORY_AUTO_VIS = '0';
+
 /**
  * Integration tests for the vis dashboard HTTP server.
  */

@@ -14,7 +14,7 @@ let activeUrl: string | null = null;
 
 function getEnvFlag(): boolean {
   const raw = process.env.KIMI_MEMORY_AUTO_VIS;
-  if (!raw) return false;
+  if (!raw) return true;
   return raw === '1' || raw.toLowerCase() === 'true';
 }
 

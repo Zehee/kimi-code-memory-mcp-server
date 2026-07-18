@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-11
+
+### Changed
+- Dashboard now auto-starts when the MCP server starts by default. Set `KIMI_MEMORY_AUTO_VIS=0` or `false` to disable.
+
 ## [1.0.0] - 2026-07-10
 
 ### Removed

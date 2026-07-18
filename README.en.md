@@ -275,13 +275,13 @@ It starts on `http://127.0.0.1:58628` and opens the browser automatically.
 
 The dashboard now renders Markdown documents in read-only mode by default; click **Edit** to modify. Other improvements include a scrollable Markdown preview, dynamic page title using the workspace folder name, and delete actions for themes and search views.
 
-To auto-start the dashboard when the MCP server starts:
+The dashboard auto-starts when the MCP server starts (and opens in the default browser). To disable this behavior:
 
 ```bash
-export KIMI_MEMORY_AUTO_VIS=1
+export KIMI_MEMORY_AUTO_VIS=0
 ```
 
-Or ask the Agent to open it:
+Or ask the Agent to open it on demand:
 
 ```json
 { "name": "open_memory_dashboard" }

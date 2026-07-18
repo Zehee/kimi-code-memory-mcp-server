@@ -294,10 +294,10 @@ npx kimi-memory-vis
 
 启动后会自动打开浏览器，默认地址 `http://127.0.0.1:58628`。
 
-也可以在 MCP 服务器启动时自动启动仪表盘：
+默认会在 MCP 服务器启动时自动启动仪表盘；如需禁用：
 
 ```bash
-export KIMI_MEMORY_AUTO_VIS=1
+export KIMI_MEMORY_AUTO_VIS=0
 ```
 
 或者在会话中让 Agent 打开：

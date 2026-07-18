@@ -1,3 +1,5 @@
+process.env.KIMI_MEMORY_AUTO_VIS = '0';
+
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import fs from 'fs';
