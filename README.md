@@ -237,6 +237,9 @@ Agent：[调用 mcp__kimi-memory__tag_theme] theme=cache-design
 | `MEMORY_STORE_ROOT` | 覆盖默认存储根目录 `~/.kimi-code-memory`。 |
 | `MEMORY_SESSIONS_ROOT` | 覆盖默认的 `~/.kimi-code/sessions` 路径，用于发现 `wire.jsonl` 文件。 |
 | `KIMI_CODE_HOME` | `MEMORY_SESSIONS_ROOT` 的替代方案；会话从 `<KIMI_CODE_HOME>/sessions` 读取。 |
+| `KIMI_MEMORY_AUTO_VIS` | 是否在 MCP 服务器启动时自动启动仪表盘。默认 `1`/`true`；设为 `0`/`false` 禁用。 |
+| `KIMI_MEMORY_VIS_PORT` | 仪表盘起始端口，默认 `58628`；若被占用会自动向后尝试 10 个端口。 |
+| `KIMI_MEMORY_VIS_HOST` | 仪表盘绑定地址，默认 `127.0.0.1`。 |
 
 ## 工具列表
 
@@ -286,27 +289,65 @@ Agent：[调用 mcp__kimi-memory__tag_theme] theme=cache-design
 
 ## 可视化仪表盘
 
-提供独立的 Web 仪表盘，用于查看工作区记忆、主题时间线和近期决策：
+提供独立的 Web 仪表盘，用于查看工作区记忆、主题时间线和近期决策。
 
-```bash
-npx kimi-memory-vis
-```
+### 启动方式
 
-启动后会自动打开浏览器，默认地址 `http://127.0.0.1:58628`。
+1. **随 MCP 服务器自动启动（默认）**
 
-默认会在 MCP 服务器启动时自动启动仪表盘；如需禁用：
+   `kimi-code-memory-mcp-server` 启动后会自动在后台启动仪表盘，并尝试打开浏览器。默认地址：
 
-```bash
-export KIMI_MEMORY_AUTO_VIS=0
-```
+   ```text
+   http://127.0.0.1:58628
+   ```
 
-或者在会话中让 Agent 打开：
+   若端口被占用，会自动尝试 `58629`–`58637`。
 
-```json
-{ "name": "open_memory_dashboard" }
-```
+   如需禁用自动启动：
 
-仪表盘支持：
+   ```bash
+   export KIMI_MEMORY_AUTO_VIS=0
+   ```
+
+2. **手动独立启动**
+
+   安装包后：
+
+   ```bash
+   npx kimi-memory-vis
+   ```
+
+   从源码运行：
+
+   ```bash
+   npx tsx src/vis-cli.ts
+   ```
+
+   常用选项：
+
+   ```bash
+   npx kimi-memory-vis --port 8080        # 指定端口
+   npx kimi-memory-vis --no-open          # 不自动打开浏览器
+   npx kimi-memory-vis --workspace /path  # 查看其他工作区
+   ```
+
+3. **在对话中让 Agent 打开**
+
+   让 Agent 调用记忆工具：
+
+   ```text
+   mcp__kimi-memory__open_memory_dashboard
+   ```
+
+### 环境变量
+
+| 变量 | 用途 |
+|------|------|
+| `KIMI_MEMORY_AUTO_VIS` | 是否在 MCP 服务器启动时自动启动仪表盘。默认 `1`/`true`；设为 `0`/`false` 禁用。 |
+| `KIMI_MEMORY_VIS_PORT` | 仪表盘起始端口，默认 `58628`。 |
+| `KIMI_MEMORY_VIS_HOST` | 仪表盘绑定地址，默认 `127.0.0.1`。 |
+
+### 仪表盘功能
 
 - 工作区概览与 `essence.md` 浏览/编辑（默认只读，点击“编辑”后修改）
 - Markdown 文档轻量级渲染，超长内容自带滚动条

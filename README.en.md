@@ -236,6 +236,9 @@ You can override the storage root with the `MEMORY_STORE_ROOT` environment varia
 | `MEMORY_STORE_ROOT` | Override the default `~/.kimi-code-memory` storage root. |
 | `MEMORY_SESSIONS_ROOT` | Override the default `~/.kimi-code/sessions` path used to discover `wire.jsonl` files. |
 | `KIMI_CODE_HOME` | Alternative to `MEMORY_SESSIONS_ROOT`; sessions are read from `<KIMI_CODE_HOME>/sessions`. |
+| `KIMI_MEMORY_AUTO_VIS` | Whether to auto-start the dashboard when the MCP server starts. Defaults to `1`/`true`; set to `0`/`false` to disable. |
+| `KIMI_MEMORY_VIS_PORT` | Starting port for the dashboard. Defaults to `58628`; falls back through the next 10 ports if occupied. |
+| `KIMI_MEMORY_VIS_HOST` | Host for the dashboard to bind to. Defaults to `127.0.0.1`. |
 
 ## Tools
 
@@ -265,27 +268,73 @@ You can override the storage root with the `MEMORY_STORE_ROOT` environment varia
 
 ## Dashboard
 
-A standalone web dashboard is available to visualize workspace memory, theme timelines, and recent decisions:
+A standalone web dashboard is available to visualize workspace memory, theme timelines, and recent decisions.
 
-```bash
-npx kimi-memory-vis
-```
+### Starting the dashboard
 
-It starts on `http://127.0.0.1:58628` and opens the browser automatically.
+1. **Auto-start with the MCP server (default)**
 
-The dashboard now renders Markdown documents in read-only mode by default; click **Edit** to modify. Other improvements include a scrollable Markdown preview, dynamic page title using the workspace folder name, and delete actions for themes and search views.
+   `kimi-code-memory-mcp-server` starts the dashboard in the background and tries to open your browser. Default URL:
 
-The dashboard auto-starts when the MCP server starts (and opens in the default browser). To disable this behavior:
+   ```text
+   http://127.0.0.1:58628
+   ```
 
-```bash
-export KIMI_MEMORY_AUTO_VIS=0
-```
+   If the port is in use, it tries `58629`–`58637` automatically.
 
-Or ask the Agent to open it on demand:
+   To disable auto-start:
 
-```json
-{ "name": "open_memory_dashboard" }
-```
+   ```bash
+   export KIMI_MEMORY_AUTO_VIS=0
+   ```
+
+2. **Start manually**
+
+   After installing the package:
+
+   ```bash
+   npx kimi-memory-vis
+   ```
+
+   From source:
+
+   ```bash
+   npx tsx src/vis-cli.ts
+   ```
+
+   Common options:
+
+   ```bash
+   npx kimi-memory-vis --port 8080        # use a custom port
+   npx kimi-memory-vis --no-open          # do not open the browser
+   npx kimi-memory-vis --workspace /path  # view another workspace
+   ```
+
+3. **Open on demand from a conversation**
+
+   Ask the Agent to call:
+
+   ```text
+   mcp__kimi-memory__open_memory_dashboard
+   ```
+
+### Environment variables
+
+| Variable | Purpose |
+|----------|---------|
+| `KIMI_MEMORY_AUTO_VIS` | Whether to auto-start the dashboard when the MCP server starts. Defaults to `1`/`true`; set to `0`/`false` to disable. |
+| `KIMI_MEMORY_VIS_PORT` | Starting port for the dashboard. Defaults to `58628`. |
+| `KIMI_MEMORY_VIS_HOST` | Host for the dashboard to bind to. Defaults to `127.0.0.1`. |
+
+### Dashboard features
+
+- Workspace overview and `essence.md` viewing/editing (read-only by default; click **Edit** to modify)
+- Lightweight Markdown rendering with scrollable previews
+- Theme timeline browsing and theme deletion
+- Search-view list with optional cascading cleanup of refined turns
+- Recent decisions list
+- Explicit memory folder browsing
+- Dynamic page title using the workspace folder name
 
 ## Development
 
