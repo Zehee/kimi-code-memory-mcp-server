@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.1.0] - 2026-07-11
 
+### Added
+- GitHub Actions workflow to publish to npm on `v*` tag push.
+
 ### Changed
 - Dashboard now auto-starts when the MCP server starts by default. Set `KIMI_MEMORY_AUTO_VIS=0` or `false` to disable.
 
