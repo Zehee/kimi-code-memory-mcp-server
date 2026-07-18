@@ -7,15 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.1.0] - 2026-07-11
+## [0.3.1] - 2026-07-18
+
+### Fixed
+- Dashboard now auto-reconciles `index.json` before every read endpoint, so memories written by the MCP server (or another process) appear immediately without a manual `/api/sync`.
+
+## [0.3.0] - 2026-07-18
 
 ### Added
 - GitHub Actions workflow to publish to npm on `v*` tag push.
+- Improved integration-test cleanup: orphaned `node.exe` processes are killed and temporary directories are removed more reliably.
 
 ### Changed
-- Dashboard now auto-starts when the MCP server starts by default. Set `KIMI_MEMORY_AUTO_VIS=0` or `false` to disable.
-
-## [1.0.0] - 2026-07-10
+- **BREAKING** Dashboard now auto-starts when the MCP server starts by default. Set `KIMI_MEMORY_AUTO_VIS=0` or `false` to disable.
+- README sections updated with dashboard usage, environment variables, and manual launch commands.
 
 ### Removed
 - **BREAKING** MCP tool `load_workspace_context` removed. Context resumption is now handled entirely by `bootstrap_workspace`.
@@ -77,7 +82,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved `scripts/session-search-verify.mjs` with CLI/env args, safer parsing, and cleanup.
 - Updated READMEs to reflect npm-published status and setup command.
 
-[Unreleased]: https://github.com/Zehee/kimi-code-memory-mcp-server/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Zehee/kimi-code-memory-mcp-server/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.3.1
+[0.3.0]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.3.0
 [0.2.0]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.2.0
 [0.1.2]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.1.2
 [0.1.1]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.1.1
