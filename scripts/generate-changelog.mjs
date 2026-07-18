@@ -40,6 +40,7 @@ const TYPE_SECTIONS = {
 const SKIP_PATTERNS = [
   /^release[(:]/i,
   /^docs:\s*update\s+changelog/i,
+  /^chore:\s*update\s+changelog/i,
   /^chore:\s*release/i,
   /^chore\(release\)/i,
 ];
@@ -161,11 +162,13 @@ function insertIntoChangelog(markdown) {
   const before = content.slice(0, insertPos);
   const after = content.slice(insertPos);
 
-  // Avoid duplicating entries if the same commit link already exists.
-  const firstLink = markdown.match(/\[([a-f0-9]{7})\]/);
-  if (firstLink && after.includes(`[${firstLink[1]}]`)) {
-    console.error('These commits already appear to be in CHANGELOG.md. Aborting to avoid duplicates.');
-    process.exit(1);
+  // Avoid duplicating entries if any of the commit links already exists.
+  const generatedLinks = Array.from(markdown.matchAll(/\[([a-f0-9]{7})\]/g)).map((m) => m[1]);
+  const existingLinks = Array.from(after.matchAll(/\[([a-f0-9]{7})\]/g)).map((m) => m[1]);
+  const hasDuplicate = generatedLinks.some((hash) => existingLinks.includes(hash));
+  if (hasDuplicate) {
+    console.error('Some commits already appear to be in CHANGELOG.md. Skipping to avoid duplicates.');
+    process.exit(0);
   }
 
   const spacer = after.startsWith('\n## [') || after.startsWith('## [') ? '\n' : '\n\n';

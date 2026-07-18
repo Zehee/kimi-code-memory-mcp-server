@@ -26,6 +26,7 @@
     "sync-version": "node scripts/sync-version.mjs",
     "copy-vis-static": "node scripts/copy-vis-static.mjs",
     "changelog": "node scripts/generate-changelog.mjs",
+    "release": "node scripts/release.mjs",
     "build": "npm run sync-version && tsc && npm run copy-vis-static",
     "dev": "tsx src/server.ts",
     "start": "node dist/server.js",
