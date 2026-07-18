@@ -145,6 +145,15 @@ export function createApp(ctx: Ctx): Hono {
     c.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
     c.header('Access-Control-Allow-Headers', 'Content-Type');
     if (c.req.method === 'OPTIONS') return c.body(null, 204);
+    // Refresh the index from disk before read endpoints so the dashboard stays
+    // in sync when the MCP server (or another process) writes new memories.
+    if (c.req.method === 'GET') {
+      try {
+        await ctx.indexDao.reconcileIndex();
+      } catch {
+        // Ignore reconciliation failures and serve the cached view.
+      }
+    }
     await next();
   });
 
