@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **server**: shut down dashboard when stdio pipe closes ([805d300](https://github.com/Zehee/kimi-code-memory-mcp-server/commit/805d300a8b1a0ec5dd4f05096420a507927eb73a))
+
 ## [0.3.1] - 2026-07-18
 
 ### Fixed
