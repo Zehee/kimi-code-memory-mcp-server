@@ -1,6 +1,6 @@
 {
   "name": "kimi-code-memory-mcp-server",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Local stdio MCP server providing cross-session memory for Kimi Code CLI",
   "main": "dist/server.js",
   "types": "dist/server.d.ts",
