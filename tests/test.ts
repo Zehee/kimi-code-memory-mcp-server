@@ -7,6 +7,7 @@ import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import assert from 'assert';
+import { execFileSync } from 'child_process';
 import { RefinedManager } from '../src/refined-manager.js';
 import { computeWorkspaceHash } from '../src/utils/paths.js';
 import { runSetup } from '../src/setup.js';
@@ -15,21 +16,52 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.join(__dirname, '..');
 
+const TEST_TEMP_PREFIXES = ['kimi-code-', 'kimi-memory-', 'refined-'];
+const SERVER_MARKER = path.join(projectRoot, 'src', 'server.ts');
+
 cleanupTempDirectories();
+killOrphanedTestServers();
 
 const testStoreRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-code-memory-test-'));
 process.env.MEMORY_STORE_ROOT = testStoreRoot;
 
 function cleanupTempDirectories() {
   // Clean up any leftover test temp directories from previous interrupted runs.
-  const prefix = 'kimi-code-';
   for (const entry of fs.readdirSync(os.tmpdir(), { withFileTypes: true })) {
-    if (!entry.isDirectory() || !entry.name.startsWith(prefix)) continue;
+    if (!entry.isDirectory()) continue;
+    if (!TEST_TEMP_PREFIXES.some((prefix) => entry.name.startsWith(prefix))) continue;
     try {
       fs.rmSync(path.join(os.tmpdir(), entry.name), { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     } catch {
       // Ignore Windows lock cleanup issues.
     }
+  }
+}
+
+function killOrphanedTestServers() {
+  // On Windows, previous interrupted test runs may leave node.exe processes holding
+  // the SQLite lock and listening ports. Kill any node.exe that was started from
+  // this project's source server entry point (but never the installed dist binary).
+  if (process.platform !== 'win32') return;
+  try {
+    const ps =
+      'Get-WmiObject Win32_Process -Filter "Name=\'node.exe\'" | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress';
+    const output = execFileSync('powershell', ['-NoProfile', '-Command', ps], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const parsed = JSON.parse(output) as { ProcessId?: number; CommandLine?: string } | Array<{ ProcessId?: number; CommandLine?: string }>;
+    const procs = Array.isArray(parsed) ? parsed : [parsed];
+    for (const proc of procs) {
+      const pid = proc.ProcessId;
+      const cmdLine = proc.CommandLine ?? '';
+      if (!pid || !cmdLine.includes(SERVER_MARKER)) continue;
+      if (cmdLine.includes('.kimi-code') && cmdLine.includes('dist\\server.js')) continue;
+      try {
+        execFileSync('taskkill', ['/T', '/F', '/PID', String(pid)], { windowsHide: true, stdio: ['ignore', 'ignore', 'ignore'] });
+      } catch {
+        // Already exited or access denied; ignore.
+      }
+    }
+  } catch {
+    // WMIC/PowerShell may be unavailable; ignore.
   }
 }
 
@@ -39,6 +71,7 @@ function cleanup() {
   } catch {
     // Ignore Windows lock cleanup issues.
   }
+  killOrphanedTestServers();
   cleanupTempDirectories();
 }
 
@@ -47,6 +80,23 @@ function parseJsonResult(toolResult: unknown): any {
   const result = toolResult as { content: Array<{ type: string; text?: string }> };
   const text = result.content.find((c) => c.type === 'text')?.text;
   return JSON.parse(text as string);
+}
+
+function killProcessTree(pid: number | null) {
+  if (pid === null) return;
+  if (process.platform === 'win32') {
+    try {
+      execFileSync('taskkill', ['/T', '/F', '/PID', String(pid)], { windowsHide: true, stdio: ['ignore', 'ignore', 'ignore'] });
+    } catch {
+      // Already exited or access denied; ignore.
+    }
+  } else {
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {
+      // Already exited; ignore.
+    }
+  }
 }
 
 async function withClient(fn: (client: Client) => Promise<unknown>) {
@@ -61,11 +111,14 @@ async function withClient(fn: (client: Client) => Promise<unknown>) {
   });
   const client = new Client({ name: 'test-client', version: '0.1.0' });
   await client.connect(transport);
+  const pid = transport.pid;
 
   try {
     return await fn(client);
   } finally {
     await transport.close();
+    // On Windows the SDK's graceful close is unreliable; ensure the whole tree is gone.
+    killProcessTree(pid);
   }
 }
 

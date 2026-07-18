@@ -18,6 +18,20 @@ import { serve } from '@hono/node-server';
 import type { ServerType } from '@hono/node-server';
 import type { Ctx } from '../src/types.js';
 
+function cleanupTempDirectories() {
+  const prefix = 'kimi-memory-vis-test-';
+  for (const entry of fs.readdirSync(os.tmpdir(), { withFileTypes: true })) {
+    if (!entry.isDirectory() || !entry.name.startsWith(prefix)) continue;
+    try {
+      fs.rmSync(path.join(os.tmpdir(), entry.name), { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    } catch {
+      // Ignore Windows lock cleanup issues.
+    }
+  }
+}
+
+cleanupTempDirectories();
+
 function createTempCtx(): { ctx: Ctx; cleanup: () => void } {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-memory-vis-test-'));
   const cwd = tmpRoot.replace(/\\/g, '/');
@@ -46,7 +60,6 @@ function createTempCtx(): { ctx: Ctx; cleanup: () => void } {
   return {
     ctx,
     cleanup: () => {
-      refinedManager.close();
       try {
         fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
       } catch {
@@ -56,7 +69,7 @@ function createTempCtx(): { ctx: Ctx; cleanup: () => void } {
   };
 }
 
-async function startTestServer(ctx: Ctx): Promise<{ server: ServerType; url: string; stop: () => void }> {
+async function startTestServer(ctx: Ctx): Promise<{ server: ServerType; url: string; stop: () => Promise<void> }> {
   const app = createApp(ctx);
   const server = serve({ fetch: app.fetch, port: 0, hostname: '127.0.0.1' });
 
@@ -70,9 +83,11 @@ async function startTestServer(ctx: Ctx): Promise<{ server: ServerType; url: str
   return {
     server,
     url,
-    stop: () => {
+    stop: async () => {
+      await new Promise<void>((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+      });
       ctx.refinedManager.close();
-      server.close();
     },
   };
 }
@@ -99,7 +114,7 @@ async function testWorkspaceEndpoint() {
     assert(typeof data.stats.refinedTurns === 'number');
     assert(typeof data.stats.sessions === 'number');
   } finally {
-    stop();
+    await stop();
     cleanup();
   }
 }
@@ -122,7 +137,7 @@ async function testThemesEndpoint() {
     assert.strictEqual(data[0].name, 'my-theme');
     assert.strictEqual(data[0].memoryCount, 1);
   } finally {
-    stop();
+    await stop();
     cleanup();
   }
 }
@@ -142,7 +157,7 @@ async function testSaveEssenceAndReadBack() {
     const workspace = (await workspaceRes.json()) as { essence: string };
     assert(workspace.essence.includes('Test content'));
   } finally {
-    stop();
+    await stop();
     cleanup();
   }
 }
@@ -156,7 +171,7 @@ async function testStaticFallback() {
     const text = await res.text();
     assert(text.includes('<!doctype html>') && text.includes('Kimi Memory'));
   } finally {
-    stop();
+    await stop();
     cleanup();
   }
 }
@@ -198,7 +213,7 @@ async function testFolderEndpoints() {
     const list4 = (await (await fetch(`${url}/api/folders`)).json()) as string[];
     assert(!list4.includes('memory/choices'));
   } finally {
-    stop();
+    await stop();
     cleanup();
   }
 }
@@ -229,7 +244,7 @@ async function testMemoryCrudEndpoints() {
     const read2 = await fetch(`${url}/api/memory/${encodeURIComponent('memory/knowledge')}/${encodeURIComponent('test-item')}`);
     assert.strictEqual(read2.status, 404);
   } finally {
-    stop();
+    await stop();
     cleanup();
   }
 }
