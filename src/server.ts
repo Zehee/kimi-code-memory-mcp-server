@@ -123,17 +123,21 @@ async function main() {
   } else if (visResult.error) {
     process.stderr.write(`[kimi-memory] vis dashboard failed to start: ${visResult.error}\n`);
   }
+
+  // When the parent (Kimi Code CLI / MCP client) is killed, the stdio pipe
+  // closes. Listen for stdin end/close so we can shut down the dashboard and
+  // exit cleanly instead of becoming an orphan process.
+  process.stdin.on('end', gracefulShutdown);
+  process.stdin.on('close', gracefulShutdown);
 }
 
-process.on('SIGINT', () => {
+function gracefulShutdown() {
   stopVisServer();
   process.exit(0);
-});
+}
 
-process.on('SIGTERM', () => {
-  stopVisServer();
-  process.exit(0);
-});
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
 
 main().catch((err) => {
   const message = err instanceof Error ? err.message : String(err);
