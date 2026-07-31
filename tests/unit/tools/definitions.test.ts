@@ -7,6 +7,10 @@ import type { ThemeManager } from '../../../src/theme-manager.js';
 import type { RefinedManager } from '../../../src/refined-manager.js';
 
 export default async function runTests(): Promise<void> {
+  // Dispatching every tool also hits `open_memory_dashboard`; keep it from
+  // starting a real HTTP server (which would keep the process alive in CI).
+  process.env.KIMI_MEMORY_AUTO_VIS = '0';
+
   const mockCtx: Ctx = {
     cwd: '/tmp',
     workspaceId: 'workspace-test',
