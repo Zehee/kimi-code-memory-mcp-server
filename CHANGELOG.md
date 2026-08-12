@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- test on Node 22/24, drop 18/20 (node:sqlite requires >= 22.13) ([1b19e7f](https://github.com/Zehee/kimi-code-memory-mcp-server/commit/1b19e7f453fdcbfec2d21f318bf477e36579ca39))
+
 ## [0.4.0] - 2026-08-12
 
 ### Changed
