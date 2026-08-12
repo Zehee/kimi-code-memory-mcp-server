@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-12
+
 ### Changed
 - **BREAKING** Migrated refined-turn storage from `better-sqlite3` to Node's built-in `node:sqlite`. Minimum Node.js version is now 22.13; installs no longer require native compilation.
 - add changelog generator script and populate Unreleased ([3914e63](https://github.com/Zehee/kimi-code-memory-mcp-server/commit/3914e63fc2fa87cf506c5bed7c44e91fc72ad332))
@@ -89,10 +91,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved `scripts/session-search-verify.mjs` with CLI/env args, safer parsing, and cleanup.
 - Updated READMEs to reflect npm-published status and setup command.
 
-[Unreleased]: https://github.com/Zehee/kimi-code-memory-mcp-server/compare/v0.3.1...HEAD
+
 [0.3.1]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.3.1
 [0.3.0]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.3.0
 [0.2.0]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.2.0
 [0.1.2]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.1.2
 [0.1.1]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.1.0
+[Unreleased]: https://github.com/Zehee/kimi-code-memory-mcp-server/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.4.0
