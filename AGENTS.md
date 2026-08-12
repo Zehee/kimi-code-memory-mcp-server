@@ -1,6 +1,6 @@
-## 强制启动协议
+## 强制启动协议-（subagent忽略）
 
-每次会话开始后、回答用户第一个问题或执行任何可能改变项目状态的操作之前，**必须调用** `mcp__kimi-memory__bootstrap_workspace()`。
+每次新会话开始后、回答用户第一个问题或执行任何可能改变项目状态的操作之前，**必须调用** `mcp__kimi-memory__bootstrap_workspace()`。
 
 必须读取并内化：
 1. `essence.md` —— 当前工作区什么最重要
