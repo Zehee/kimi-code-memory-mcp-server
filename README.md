@@ -89,10 +89,14 @@ npm run build
 
 ## 快速配置（推荐）
 
-从 npm 安装后，运行 setup 命令自动配置 Kimi Code CLI：
+运行 setup 命令自动配置 Kimi Code CLI。`kimi-memory-setup` 是 `kimi-code-memory-mcp-server` 包提供的 bin（registry 上没有同名独立包），二选一：
 
 ```bash
-npx kimi-memory-setup
+# 已按上文全局安装：bin 已在 PATH 上，直接运行
+kimi-memory-setup
+
+# 未全局安装：让 npx 从包中解析该 bin
+npx -p kimi-code-memory-mcp-server kimi-memory-setup
 ```
 
 它会完成：
@@ -105,13 +109,13 @@ npx kimi-memory-setup
 预览变更而不写入文件：
 
 ```bash
-npx kimi-memory-setup --dry-run
+kimi-memory-setup --dry-run
 ```
 
 后续如需移除注入的配置：
 
 ```bash
-npx kimi-memory-setup --undo
+kimi-memory-setup --undo
 ```
 
 ## 配置 Kimi Code CLI（手动）
@@ -314,7 +318,7 @@ Agent：[调用 mcp__kimi-memory__tag_theme] theme=cache-design
    安装包后：
 
    ```bash
-   npx kimi-memory-vis
+   kimi-memory-vis
    ```
 
    从源码运行：
@@ -326,9 +330,9 @@ Agent：[调用 mcp__kimi-memory__tag_theme] theme=cache-design
    常用选项：
 
    ```bash
-   npx kimi-memory-vis --port 8080        # 指定端口
-   npx kimi-memory-vis --no-open          # 不自动打开浏览器
-   npx kimi-memory-vis --workspace /path  # 查看其他工作区
+   kimi-memory-vis --port 8080        # 指定端口
+   kimi-memory-vis --no-open          # 不自动打开浏览器
+   kimi-memory-vis --workspace /path  # 查看其他工作区
    ```
 
 3. **在对话中让 Agent 打开**

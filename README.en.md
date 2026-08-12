@@ -88,10 +88,14 @@ npm run build
 
 ## Quick Setup (recommended)
 
-After installing from npm, run the setup command to configure Kimi Code CLI automatically:
+Run the setup command to configure Kimi Code CLI automatically. `kimi-memory-setup` is a bin provided by the `kimi-code-memory-mcp-server` package (there is no standalone package of that name on the registry), so pick one:
 
 ```bash
-npx kimi-memory-setup
+# If you installed globally above: the bin is already on PATH, run it directly
+kimi-memory-setup
+
+# Without a global install: let npx resolve the bin from the package
+npx -p kimi-code-memory-mcp-server kimi-memory-setup
 ```
 
 This will:
@@ -104,13 +108,13 @@ This will:
 Preview changes without writing anything:
 
 ```bash
-npx kimi-memory-setup --dry-run
+kimi-memory-setup --dry-run
 ```
 
 Remove the injected configuration later:
 
 ```bash
-npx kimi-memory-setup --undo
+kimi-memory-setup --undo
 ```
 
 ## Configure Kimi Code CLI (manual)
@@ -293,7 +297,7 @@ A standalone web dashboard is available to visualize workspace memory, theme tim
    After installing the package:
 
    ```bash
-   npx kimi-memory-vis
+   kimi-memory-vis
    ```
 
    From source:
@@ -305,9 +309,9 @@ A standalone web dashboard is available to visualize workspace memory, theme tim
    Common options:
 
    ```bash
-   npx kimi-memory-vis --port 8080        # use a custom port
-   npx kimi-memory-vis --no-open          # do not open the browser
-   npx kimi-memory-vis --workspace /path  # view another workspace
+   kimi-memory-vis --port 8080        # use a custom port
+   kimi-memory-vis --no-open          # do not open the browser
+   kimi-memory-vis --workspace /path  # view another workspace
    ```
 
 3. **Open on demand from a conversation**
