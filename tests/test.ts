@@ -815,6 +815,7 @@ async function testSetupIntegration() {
     const mcpConfig = JSON.parse(fs.readFileSync(mcpJsonPath, 'utf8'));
     assert(mcpConfig.mcpServers['kimi-memory']);
     assert.deepStrictEqual(mcpConfig.mcpServers['kimi-memory'].args, ['-y', 'kimi-code-memory-mcp-server']);
+    assert.strictEqual(mcpConfig.mcpServers['kimi-memory'].startupTimeoutMs, 120000);
 
     // Re-running should update, not duplicate.
     const updateResult = await runSetup({ kimiCodeHome: tmpHome });

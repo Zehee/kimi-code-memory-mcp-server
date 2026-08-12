@@ -195,6 +195,8 @@ function updateMcpJson(mcpPath: string, options: SetupOptions): string {
     command: 'npx',
     args: ['-y', 'kimi-code-memory-mcp-server'],
     enabled: true,
+    // First run may wait on npx resolving/installing the package; allow up to 2 minutes.
+    startupTimeoutMs: 120000,
   };
 
   const hadEntry = Object.prototype.hasOwnProperty.call(config.mcpServers, 'kimi-memory');
