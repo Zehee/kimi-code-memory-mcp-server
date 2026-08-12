@@ -46,7 +46,8 @@ function todayIso() {
 
 function updateChangelog(version) {
   const changelogPath = path.join(projectRoot, 'CHANGELOG.md');
-  const content = fs.readFileSync(changelogPath, 'utf8');
+  // Normalize CRLF: on Windows with core.autocrlf=true the working copy may have \r\n.
+  const content = fs.readFileSync(changelogPath, 'utf8').replace(/\r\n/g, '\n');
 
   const unreleasedHeading = '## [Unreleased]\n';
   const idx = content.indexOf(unreleasedHeading);
@@ -132,7 +133,8 @@ function main() {
   pkg.version = version;
   writeJson('package.json', pkg);
 
-  run('npm', ['run', 'sync-version']);
+  // Run sync-version directly with node; spawning npm's .cmd shim is unreliable on Windows.
+  run(process.execPath, [path.join(projectRoot, 'scripts/sync-version.mjs')]);
   updateChangelog(version);
 
   run('git', ['add', 'package.json', 'src/version.ts', 'CHANGELOG.md']);
