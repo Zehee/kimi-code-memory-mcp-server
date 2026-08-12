@@ -46,7 +46,7 @@ flowchart TD
     UTILS["utils/<br/>paths · validation · frontmatter ·<br/>file-helpers · search · date ·<br/>mutex · action-entities · headings · tools"]
   end
 
-  EXT["外部依赖<br/>@modelcontextprotocol/sdk · better-sqlite3 · hono · open<br/>+ 文件系统 / Kimi Code wire.jsonl"]
+  EXT["外部依赖<br/>@modelcontextprotocol/sdk · node:sqlite · hono · open<br/>+ 文件系统 / Kimi Code wire.jsonl"]
 
   L4 --> L3 --> L2 --> L1 --> L0
   SERVER -.stdio.-> EXT
@@ -118,7 +118,7 @@ graph LR
   IDX --> IMR
 
   subgraph RF["refine/ 内部"]
-    RS2["store.ts<br/>better-sqlite3"]
+    RS2["store.ts<br/>node:sqlite"]
     EX["extractor.ts<br/>提取实体/动作"]
     AD["adapter.ts<br/>row ↔ turn"]
   end
@@ -525,7 +525,7 @@ flowchart TD
   R4 -- 是 --> R5["parseWireFile → turns"]
   R5 --> R6["按 turnIds 白名单过滤；再按 limit 取最近 N 条"]
   R6 --> R7["逐 turn → refinedManager.refineTurn<br/>（extractor 提取实体/动作/分类/摘要）"]
-  R7 --> R8["refinedManager.saveRefinedTurns<br/>Mutex.runExclusive → RefinedStore(better-sqlite3) 批量写入"]
+  R7 --> R8["refinedManager.saveRefinedTurns<br/>Mutex.runExclusive → RefinedStore(node:sqlite) 批量写入"]
   R8 --> R9["返回 {success, sessionId, refinedCount,<br/>outputPath=refined.sqlite, sample 前 2 条}"]
 ```
 

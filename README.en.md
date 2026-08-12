@@ -69,7 +69,7 @@ See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the design rationale.
 
 ## Install
 
-Node.js ≥ 18 is required.
+Node.js ≥ 22.13 is required (uses the built-in `node:sqlite`, no native compilation needed).
 
 ### From npm (recommended)
 

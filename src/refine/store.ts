@@ -4,7 +4,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import type { RefinedSearchOptions, RefinedSearchMatch, RefinedTurn } from './types.js';
 import { turnToRow } from './adapter.js';
 import { rowToTurn } from './adapter.js';
@@ -15,13 +15,13 @@ import { dateRangeSql } from '../utils/date.js';
 export class RefinedStore {
   refinedRoot: string;
   private dbPath: string;
-  private db: Database.Database;
+  private db: DatabaseSync;
 
   constructor(refinedRoot: string) {
     this.refinedRoot = refinedRoot;
     this.dbPath = path.join(refinedRoot, 'refined.sqlite');
     fs.mkdirSync(refinedRoot, { recursive: true });
-    this.db = new Database(this.dbPath);
+    this.db = new DatabaseSync(this.dbPath);
     this.initDb();
   }
 
@@ -47,6 +47,19 @@ export class RefinedStore {
     return this.dbPath;
   }
 
+  /** node:sqlite has no transaction() helper; wrap fn in BEGIN/COMMIT/ROLLBACK. */
+  private runInTransaction<T>(fn: () => T): T {
+    this.db.exec('BEGIN');
+    try {
+      const result = fn();
+      this.db.exec('COMMIT');
+      return result;
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+  }
+
   saveRefinedTurns(sessionId: string, refinedTurns: RefinedTurn[]): void {
     const insert = this.db.prepare(
       `INSERT OR REPLACE INTO refined_turns
@@ -60,7 +73,7 @@ export class RefinedStore {
       merged.set(turn.turnId, turn);
     }
 
-    const transaction = this.db.transaction(() => {
+    this.runInTransaction(() => {
       for (const turn of merged.values()) {
         const row = turnToRow(turn);
         insert.run(
@@ -75,7 +88,6 @@ export class RefinedStore {
         );
       }
     });
-    transaction();
   }
 
   loadRefinedTurns(sessionId: string): RefinedTurn[] {
@@ -211,15 +223,14 @@ export class RefinedStore {
   deleteRefinedTurns(refs: Array<{ sessionId: string; turnId: number }>): number {
     if (refs.length === 0) return 0;
     const deleteStmt = this.db.prepare('DELETE FROM refined_turns WHERE session_id = ? AND turn_id = ?');
-    const transaction = this.db.transaction(() => {
+    return this.runInTransaction(() => {
       let count = 0;
       for (const ref of refs) {
         const info = deleteStmt.run(ref.sessionId, ref.turnId);
-        count += info.changes;
+        count += Number(info.changes);
       }
       return count;
     });
-    return transaction();
   }
 
   close(): void {

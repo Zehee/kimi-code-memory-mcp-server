@@ -70,7 +70,7 @@ Markdown + YAML frontmatter 带来：
 
 ## 安装
 
-需要 Node.js ≥ 18。
+需要 Node.js ≥ 22.13（内置 `node:sqlite`，无需原生编译依赖）。
 
 ### 从 npm 安装（推荐）
 
