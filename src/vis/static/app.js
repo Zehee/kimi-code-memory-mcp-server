@@ -153,7 +153,7 @@ function renderSidebar() {
             item.id,
           )}">
             <span class="nav-icon">${escapeHtml(item.icon)}</span>
-            <span>${escapeHtml(item.label)}</span>
+            <span>${escapeHtml(item.id === 'workspace' ? workspaceFolderName() : item.label)}</span>
           </a>
         `,
         )
@@ -302,7 +302,7 @@ function renderWorkspaceView() {
   return `
     <section class="view view-active" data-view="workspace">
       <div class="page-header">
-        <h1 class="page-title">Workspace</h1>
+        <h1 class="page-title">${escapeHtml(workspaceFolderName())}</h1>
       </div>
       <div class="stat-grid" id="statsGrid"></div>
       <div class="composer-card">
@@ -362,6 +362,8 @@ async function loadWorkspace() {
   updateDocumentTitle();
   renderSidebar();
   if (state.currentView === 'workspace') {
+    const titleEl = $('.page-title');
+    if (titleEl) titleEl.textContent = workspaceFolderName();
     renderStats(data.stats);
     const contentEl = $('#essenceContent');
     if (contentEl && !state.editingEssence) {
