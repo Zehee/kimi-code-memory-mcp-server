@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- add troubleshooting section and align manual mcp.json examples ([7277a5d](https://github.com/Zehee/kimi-code-memory-mcp-server/commit/7277a5d1b2a6bafbeae0e7f2de6c681c48b23859))
+
 ## [0.4.1] - 2026-08-18
 
 ### Changed
