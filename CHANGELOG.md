@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-08-18
+
 ### Changed
 - test on Node 22/24, drop 18/20 (node:sqlite requires >= 22.13) ([1b19e7f](https://github.com/Zehee/kimi-code-memory-mcp-server/commit/1b19e7f453fdcbfec2d21f318bf477e36579ca39))
 
@@ -106,5 +108,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.1.2]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.1.2
 [0.1.1]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.1.0
-[Unreleased]: https://github.com/Zehee/kimi-code-memory-mcp-server/compare/v0.4.0...HEAD
+
 [0.4.0]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.4.0
+[Unreleased]: https://github.com/Zehee/kimi-code-memory-mcp-server/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.4.1
