@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - test on Node 22/24, drop 18/20 (node:sqlite requires >= 22.13) ([1b19e7f](https://github.com/Zehee/kimi-code-memory-mcp-server/commit/1b19e7f453fdcbfec2d21f318bf477e36579ca39))
 
+### Fixed
+- **setup**: generate the `mcp.json` entry with the absolute path of the running Node binary and the package's `dist/server.js` instead of `npx -y kimi-code-memory-mcp-server`, which failed with `spawn npx ENOENT` under clients whose process environment lacks npm's bin dir (e.g. the native Windows `kimi` binary)
+- **server**: the vis dashboard now binds its port directly and retries the next port on `EADDRINUSE` instead of probe-then-bind, and late server errors are caught — a port race between multiple workspaces' MCP instances no longer crashes the whole stdio server
+- **setup**: add `startupTimeoutMs: 120000` to the generated `mcp.json` entry ([fe46e85](https://github.com/Zehee/kimi-code-memory-mcp-server/commit/fe46e85))
+
 ## [0.4.0] - 2026-08-12
 
 ### Changed

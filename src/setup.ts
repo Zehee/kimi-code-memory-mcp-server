@@ -109,7 +109,7 @@ function updateAgentsMd(agentsPath: string, injectedContent: string, options: Se
   const block = [
     INJECT_START,
     '<!-- 以下内容由 kimi-code-memory-mcp-server 自动生成，请勿手动编辑此区块。 -->',
-    '<!-- 如需更新或移除，请运行 npx kimi-code-memory-mcp-server setup --undo -->',
+    '<!-- 如需更新或移除，请运行 kimi-memory-setup --undo -->',
     injectedContent.trim(),
     INJECT_END,
   ].join('\n');
@@ -191,11 +191,15 @@ function updateMcpJson(mcpPath: string, options: SetupOptions): string {
     return 'Removed kimi-memory MCP server entry.';
   }
 
+  // Launch the server via the same Node binary running this setup, pointing at
+  // the installed package's dist/server.js by absolute path. A bare `npx` entry
+  // fails with `spawn npx ENOENT` under clients whose process environment lacks
+  // npm's bin dir (e.g. the native Windows binary), and avoids npx registry
+  // resolution delay at every startup.
   const serverEntry = {
-    command: 'npx',
-    args: ['-y', 'kimi-code-memory-mcp-server'],
+    command: process.execPath,
+    args: [path.join(getPackageRoot(), 'dist', 'server.js')],
     enabled: true,
-    // First run may wait on npx resolving/installing the package; allow up to 2 minutes.
     startupTimeoutMs: 120000,
   };
 

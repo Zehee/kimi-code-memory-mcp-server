@@ -25,29 +25,43 @@ function getDesiredPort(): number {
   return Number.isNaN(parsed) ? DEFAULT_VIS_PORT : parsed;
 }
 
-function isPortAvailable(port: number, hostname: string): Promise<boolean> {
+/**
+ * Try to bind the vis server on a port, resolving once the server is actually
+ * listening. A failed bind (e.g. EADDRINUSE when another workspace's server
+ * wins the race) resolves to null instead of crashing the process — the
+ * dashboard is optional and must never take down the MCP stdio server.
+ */
+function tryBindVisServer(ctx: Ctx, port: number, hostname: string): Promise<ServerType | null> {
   return new Promise((resolve) => {
-    import('net')
-      .then(({ createServer }) => {
-        const tester = createServer()
-          .once('error', () => resolve(false))
-          .once('listening', () => {
-            tester.close(() => resolve(true));
-          })
-          .listen(port, hostname);
-      })
-      .catch(() => resolve(false));
-  });
-}
-
-async function findAvailablePort(startPort: number, hostname: string): Promise<number | null> {
-  for (let offset = 0; offset < MAX_PORT_ATTEMPTS; offset++) {
-    const port = startPort + offset;
-    if (await isPortAvailable(port, hostname)) {
-      return port;
+    let server: ServerType;
+    const onError = () => {
+      try {
+        server.close();
+      } catch {
+        // Ignore close errors; the server may not have started listening.
+      }
+      resolve(null);
+    };
+    try {
+      server = startVisServer({
+        ctx,
+        port,
+        hostname,
+        onReady: () => {
+          server.removeListener('error', onError);
+          // Late runtime errors must not become unhandled 'error' events.
+          server.on('error', (err) => {
+            process.stderr.write(`[kimi-memory] vis dashboard error: ${err.message}\n`);
+          });
+          resolve(server);
+        },
+      });
+    } catch {
+      resolve(null);
+      return;
     }
-  }
-  return null;
+    server.once('error', onError);
+  });
 }
 
 export interface AutoStartResult {
@@ -67,29 +81,21 @@ export async function maybeStartVisServer(ctx: Ctx): Promise<AutoStartResult> {
 
   const hostname = process.env.KIMI_MEMORY_VIS_HOST || '127.0.0.1';
   const startPort = getDesiredPort();
-  const port = await findAvailablePort(startPort, hostname);
 
-  if (port === null) {
-    const error = `No available port found for vis dashboard between ${startPort} and ${startPort + MAX_PORT_ATTEMPTS - 1}`;
-    return { started: false, error };
+  for (let offset = 0; offset < MAX_PORT_ATTEMPTS; offset++) {
+    const port = startPort + offset;
+    const server = await tryBindVisServer(ctx, port, hostname);
+    if (server) {
+      activeServer = server;
+      activeUrl = `http://${hostname}:${port}`;
+      return { started: true, url: activeUrl };
+    }
   }
 
-  try {
-    const url = `http://${hostname}:${port}`;
-    activeServer = startVisServer({
-      ctx,
-      port,
-      hostname,
-      onReady: () => {
-        // Intentionally quiet; URL is returned to the caller.
-      },
-    });
-    activeUrl = url;
-    return { started: true, url };
-  } catch (err) {
-    const error = err instanceof Error ? err.message : String(err);
-    return { started: false, error };
-  }
+  return {
+    started: false,
+    error: `No available port found for vis dashboard between ${startPort} and ${startPort + MAX_PORT_ATTEMPTS - 1}`,
+  };
 }
 
 export function stopVisServer(): void {
