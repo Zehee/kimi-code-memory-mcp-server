@@ -24,6 +24,36 @@ export function renderMarkdown(md) {
   // blockquote lines (single-line simple support)
   text = text.replace(/^>\s+(.+)$/gm, '<blockquote>$1</blockquote>');
 
+  // GFM pipe tables: header row, separator row (--- with optional : alignment), body rows.
+  // Cells keep inline formatting because the inline rules below run afterwards.
+  text = text.replace(/(?:^\|.*\|[ \t]*\n?)+/gm, (block) => {
+    const rows = block
+      .trim()
+      .split('\n')
+      .map((r) => r.trim())
+      .filter(Boolean);
+    if (rows.length < 2) return block;
+    const splitCells = (row) =>
+      row
+        .replace(/^\||\|$/g, '')
+        .split('|')
+        .map((c) => c.trim());
+    const sepCells = splitCells(rows[1]);
+    if (!sepCells.length || !sepCells.every((c) => /^:?-{3,}:?$/.test(c))) return block;
+    const headerCells = splitCells(rows[0]);
+    if (headerCells.length !== sepCells.length) return block;
+    const aligns = sepCells.map((c) =>
+      c.startsWith(':') && c.endsWith(':') ? 'center' : c.endsWith(':') ? 'right' : c.startsWith(':') ? 'left' : '',
+    );
+    const alignAttr = (i) => (aligns[i] ? ` style="text-align:${aligns[i]}"` : '');
+    const thead = `<thead><tr>${headerCells.map((c, i) => `<th${alignAttr(i)}>${c}</th>`).join('')}</tr></thead>`;
+    const tbody = rows
+      .slice(2)
+      .map((row) => `<tr>${splitCells(row).map((c, i) => `<td${alignAttr(i)}>${c}</td>`).join('')}</tr>`)
+      .join('');
+    return `<table>${thead}<tbody>${tbody}</tbody></table>`;
+  });
+
   // unordered lists (single level)
   text = text.replace(/(?:^[-*+]\s+.+\n?)+/gm, (block) => {
     const items = block
@@ -63,8 +93,8 @@ export function renderMarkdown(md) {
     const trimmed = line.trim();
     const isBlock =
       trimmed === '' ||
-      /^<(?:h[1-6]|ul|ol|li|pre|blockquote|hr)/.test(trimmed) ||
-      /^<\/(?:h[1-6]|ul|ol|li|pre|blockquote)>$/.test(trimmed);
+      /^<(?:h[1-6]|ul|ol|li|pre|blockquote|hr|table)/.test(trimmed) ||
+      /^<\/(?:h[1-6]|ul|ol|li|pre|blockquote|table)>$/.test(trimmed);
     if (isBlock) {
       if (buf.length) {
         blocks.push(`<p>${buf.join(' ')}</p>`);

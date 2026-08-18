@@ -615,6 +615,29 @@ body {
   padding: 0;
 }
 
+.md-content table {
+  border-collapse: collapse;
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+
+.md-content th,
+.md-content td {
+  border: 1px solid var(--line);
+  padding: 6px 12px;
+  text-align: left;
+}
+
+.md-content th {
+  background: var(--canvas);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.md-content tbody tr:nth-child(even) {
+  background: var(--soft);
+}
+
 .md-content a {
   color: var(--blue);
   text-decoration: none;

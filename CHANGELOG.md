@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.1] - 2026-08-18
 
 ### Changed
+- **dashboard**: render GFM pipe tables (header/separator/body, `:--`/`--:`/`:-:` alignment, inline formatting inside cells) in essence and memory content
 - **dashboard**: the sidebar menu item and page title now show the real workspace directory name (derived from `cwd`) instead of the generic "Workspace" label
 - test on Node 22/24, drop 18/20 (node:sqlite requires >= 22.13) ([1b19e7f](https://github.com/Zehee/kimi-code-memory-mcp-server/commit/1b19e7f453fdcbfec2d21f318bf477e36579ca39))
 
