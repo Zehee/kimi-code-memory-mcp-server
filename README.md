@@ -136,7 +136,9 @@ kimi-memory-setup --undo
 }
 ```
 
-或者直接通过 `npx` 运行（无需安装）：
+> **Windows 原生二进制注意**：`kimi web`（原生 `kimi.exe`）的进程环境可能不包含 npm 的 bin 目录，裸 `node` / `npx` 会报 `spawn ... ENOENT`。此时把 `command` 换成 `node.exe` 的绝对路径（如 `D:\\Programs\\nodejs\\node.exe`）。`kimi-memory-setup` 生成的配置会自动使用绝对路径，推荐优先使用 setup。
+
+或者直接通过 `npx` 运行（无需安装；仅限 npx 在客户端进程 PATH 中可用的环境，且每次启动有 registry 解析开销）：
 
 ```json
 {
@@ -167,6 +169,13 @@ kimi-memory-setup --undo
 服务器名称 **`kimi-memory`** 很重要，因为本仓库自带的 `AGENTS.md` 规则以 `mcp__kimi-memory__*` 形式调用工具（例如 `mcp__kimi-memory__bootstrap_workspace`）。
 
 重启 Kimi Code CLI 以加载该服务器。
+
+## 故障排查
+
+- **`spawn npx ENOENT` / `spawn node ENOENT`**：客户端进程找不到命令（常见于原生 Windows 二进制）。把 `mcp.json` 里的 `command`/`args` 改为 Node 与 `dist/server.js` 的绝对路径，或运行 `kimi-memory-setup --force` 重新生成。
+- **改了 `mcp.json` 但 `/new` 后仍不生效**：MCP server 在会话启动时加载，且连接失败会被当前 `kimi web` 进程缓存，`/new` 不会重试——需要重启 `kimi web`（或 CLI）。
+- **切换工作区后 MCP 不可用**：0.4.1 之前版本存在 vis dashboard 端口竞态，会拖垮 MCP 进程；升级到 0.4.1+ 并重启 `kimi web`。
+- 客户端连接日志见 `~/.kimi-code/logs/kimi-code.log`。
 
 ## 可选：安装用户级 AGENTS.md 启动钩子
 
