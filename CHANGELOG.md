@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-15
+
 ### Added
 - **dashboard**: Chinese/English UI switching — one-click toggle in the topbar and a language selector in Settings; follows the browser language by default, persisted in localStorage
 - **docs**: add an Upgrading section to README/README.en (`npm i -g …@latest` + `kimi-memory-setup --force` + restart `kimi web`)
@@ -123,5 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.4.0]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.4.0
 
 [0.4.1]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.4.1
-[Unreleased]: https://github.com/Zehee/kimi-code-memory-mcp-server/compare/v0.4.2...HEAD
+
 [0.4.2]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.4.2
+[Unreleased]: https://github.com/Zehee/kimi-code-memory-mcp-server/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/Zehee/kimi-code-memory-mcp-server/releases/tag/v0.5.0
