@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **vis**: Chinese/English UI switching for dashboard ([6c29dba](https://github.com/Zehee/kimi-code-memory-mcp-server/commit/6c29dba2322d786c833acabfff6eb82d85735862))
+
+
+### Added
 - **dashboard**: Chinese/English UI switching — one-click toggle in the topbar and a language selector in Settings; follows the browser language by default, persisted in localStorage
 - **docs**: add an Upgrading section to README/README.en (`npm i -g …@latest` + `kimi-memory-setup --force` + restart `kimi web`)
 
