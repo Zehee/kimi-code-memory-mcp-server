@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **dashboard**: Chinese/English UI switching — one-click toggle in the topbar and a language selector in Settings; follows the browser language by default, persisted in localStorage
+- **docs**: add an Upgrading section to README/README.en (`npm i -g …@latest` + `kimi-memory-setup --force` + restart `kimi web`)
+
 ## [0.4.2] - 2026-08-18
 
 ### Changed

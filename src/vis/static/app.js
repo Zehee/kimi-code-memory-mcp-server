@@ -15,6 +15,7 @@ import {
   updateDocumentTitle,
 } from './utils/helpers.js';
 import { renderMarkdown } from './utils/markdown.js';
+import { t, getLocale, setLocale, onLocaleChange } from './i18n/index.js';
 import {
   api,
   listMemoryFolders,
@@ -27,37 +28,28 @@ import {
   deleteSearchViewApi,
 } from './api.js';
 
-const sections = [
-  { id: 'workspace', label: 'Workspace', icon: '◈' },
-  { id: 'themes', label: 'Themes', icon: '◉' },
-  { id: 'searches', label: 'Searches', icon: '🔍' },
-  { id: 'decisions', label: 'Decisions', icon: '◆' },
-  { id: 'memories', label: 'Memories', icon: '▣' },
-  { id: 'settings', label: 'Settings', icon: '⚙' },
-];
-
 const navGroups = [
   {
-    label: 'Workspace',
-    items: [{ id: 'workspace', label: 'Workspace', icon: '◈' }],
+    label: 'nav.group.workspace',
+    items: [{ id: 'workspace', label: 'nav.workspace', icon: '◈' }],
   },
   {
-    label: 'Analysis',
+    label: 'nav.group.analysis',
     items: [
-      { id: 'themes', label: 'Themes', icon: '◉' },
-      { id: 'searches', label: 'Searches', icon: '🔍' },
+      { id: 'themes', label: 'nav.themes', icon: '◉' },
+      { id: 'searches', label: 'nav.searches', icon: '🔍' },
     ],
   },
   {
-    label: 'Memory',
+    label: 'nav.group.memory',
     items: [
-      { id: 'decisions', label: 'Decisions', icon: '◆' },
-      { id: 'memories', label: 'Memories', icon: '▣' },
+      { id: 'decisions', label: 'nav.decisions', icon: '◆' },
+      { id: 'memories', label: 'nav.memories', icon: '▣' },
     ],
   },
   {
-    label: 'System',
-    items: [{ id: 'settings', label: 'Settings', icon: '⚙' }],
+    label: 'nav.group.system',
+    items: [{ id: 'settings', label: 'nav.settings', icon: '⚙' }],
   },
 ];
 
@@ -118,7 +110,7 @@ function renderAll() {
 function renderSidebarCollapsedTop() {
   const expandIcon = iconPanelLeftOpen();
   $('#sidebarCollapsedTop').innerHTML = `
-    <button class="sidebar-toggle-btn" id="sidebarExpandBtn" type="button" aria-label="Expand sidebar">
+    <button class="sidebar-toggle-btn" id="sidebarExpandBtn" type="button" aria-label="${t('nav.expandSidebar')}">
       ${expandIcon}
     </button>
   `;
@@ -132,7 +124,7 @@ function renderSidebarHeader() {
       ${iconKimiMemory()}
       <span>Kimi Memory</span>
     </a>
-    <button class="sidebar-toggle-btn" id="sidebarToggleBtn" type="button" aria-label="Toggle sidebar">
+    <button class="sidebar-toggle-btn" id="sidebarToggleBtn" type="button" aria-label="${t('nav.toggleSidebar')}">
       ${toggleIcon}
     </button>
   `;
@@ -153,7 +145,7 @@ function renderSidebar() {
             item.id,
           )}">
             <span class="nav-icon">${escapeHtml(item.icon)}</span>
-            <span>${escapeHtml(item.id === 'workspace' ? workspaceFolderName() : item.label)}</span>
+            <span>${escapeHtml(item.id === 'workspace' ? workspaceFolderName() : t(item.label))}</span>
           </a>
         `,
         )
@@ -161,7 +153,7 @@ function renderSidebar() {
       const isGroupActive = group.items.some((item) => item.id === currentSection || item.id === currentView);
       return `
         <div class="nav-group" style="${isGroupActive ? '' : 'opacity:0.7'}">
-          <div class="nav-group-label">${escapeHtml(group.label)}</div>
+          <div class="nav-group-label">${escapeHtml(t(group.label))}</div>
           ${itemsHtml}
         </div>
       `;
@@ -184,18 +176,18 @@ function renderSidebar() {
 function renderBreadcrumb() {
   const parts = [{ label: workspaceFolderName(), hash: '#workspace' }];
   if (state.currentView === 'themes' || state.currentView === 'theme-detail') {
-    parts.push({ label: 'Themes', hash: '#themes' });
+    parts.push({ label: t('nav.themes'), hash: '#themes' });
   }
 
   if (state.currentView === 'theme-detail' && state.currentTheme) {
     const displayName = state.data.themeDetail?.displayName || state.currentTheme;
     parts.push({ label: displayName, hash: null });
   } else if (state.currentView === 'decisions') {
-    parts.push({ label: 'Decisions', hash: null });
+    parts.push({ label: t('nav.decisions'), hash: null });
   } else if (state.currentView === 'memories') {
-    parts.push({ label: 'Memories', hash: null });
+    parts.push({ label: t('nav.memories'), hash: null });
   } else if (state.currentView === 'settings') {
-    parts.push({ label: 'Settings', hash: null });
+    parts.push({ label: t('nav.settings'), hash: null });
   } else if (state.currentView === 'themes') {
     // list already handled
   }
@@ -215,19 +207,29 @@ function renderBreadcrumb() {
 function renderTopbar() {
   $('#topbar').innerHTML = `
     <div class="topbar-left">
-      <button class="menu-toggle" id="menuToggle" type="button" aria-label="Toggle menu">☰</button>
+      <button class="menu-toggle" id="menuToggle" type="button" aria-label="${t('nav.toggleMenu')}">☰</button>
       <nav class="breadcrumb" id="breadcrumb">${renderBreadcrumb()}</nav>
     </div>
     <div class="topbar-right">
-      <button class="btn btn-secondary btn-sm" id="syncTopbarBtn" type="button" title="Reconcile index.json with filesystem">Sync index</button>
-      <button class="btn btn-secondary btn-sm" id="refreshBtn" type="button" title="Refresh current view">↻ Refresh</button>
-      <span class="status-badge"><span class="status-dot"></span>Online</span>
+      <button class="btn btn-secondary btn-sm" id="syncTopbarBtn" type="button" title="${escapeHtml(
+        t('topbar.syncIndexTitle'),
+      )}">${t('topbar.syncIndex')}</button>
+      <button class="btn btn-secondary btn-sm" id="refreshBtn" type="button" title="${escapeHtml(
+        t('topbar.refreshTitle'),
+      )}">${t('topbar.refresh')}</button>
+      <button class="btn btn-secondary btn-sm" id="localeToggleBtn" type="button" title="${escapeHtml(
+        t('topbar.switchLanguage'),
+      )}">${getLocale() === 'zh-CN' ? 'EN' : '中文'}</button>
+      <span class="status-badge"><span class="status-dot"></span>${t('topbar.online')}</span>
     </div>
   `;
 
   $('#menuToggle').addEventListener('click', toggleMobileSidebar);
   $('#syncTopbarBtn').addEventListener('click', syncIndex);
   $('#refreshBtn').addEventListener('click', () => loadDataForView(state.currentView, state.currentTheme));
+  $('#localeToggleBtn').addEventListener('click', () => {
+    setLocale(getLocale() === 'zh-CN' ? 'en' : 'zh-CN');
+  });
   $('#breadcrumb').querySelectorAll('a').forEach((a) => {
     a.addEventListener('click', (e) => {
       e.preventDefault();
@@ -287,18 +289,18 @@ function renderWorkspaceView() {
   const editing = state.editingEssence;
   const essence = state.data.workspace?.essence || '';
   const bodyHtml = editing
-    ? `<textarea class="essence-editor" id="essenceEditor" placeholder="Workspace essence is empty. Write a short constitution here…">${escapeHtml(
-        essence,
-      )}</textarea>`
+    ? `<textarea class="essence-editor" id="essenceEditor" placeholder="${escapeHtml(
+        t('essence.editorPlaceholder'),
+      )}">${escapeHtml(essence)}</textarea>`
     : `<div class="essence-content md-content" id="essenceContent">${
-        essence ? renderMarkdown(essence) : '<span class="muted">No essence yet. Click Edit to write one.</span>'
+        essence ? renderMarkdown(essence) : `<span class="muted">${t('essence.empty')}</span>`
       }</div>`;
   const actionsHtml = editing
     ? `
-      <button class="btn btn-primary btn-sm" id="saveEssenceBtn" type="button">Save</button>
-      <button class="btn btn-secondary btn-sm" id="cancelEditEssenceBtn" type="button">Cancel</button>
+      <button class="btn btn-primary btn-sm" id="saveEssenceBtn" type="button">${t('common.save')}</button>
+      <button class="btn btn-secondary btn-sm" id="cancelEditEssenceBtn" type="button">${t('common.cancel')}</button>
     `
-    : `<button class="btn btn-secondary btn-sm" id="editEssenceBtn" type="button">Edit</button>`;
+    : `<button class="btn btn-secondary btn-sm" id="editEssenceBtn" type="button">${t('common.edit')}</button>`;
   return `
     <section class="view view-active" data-view="workspace">
       <div class="page-header">
@@ -307,7 +309,7 @@ function renderWorkspaceView() {
       <div class="stat-grid" id="statsGrid"></div>
       <div class="composer-card">
         <div class="composer-header">
-          <h2 class="composer-title">Workspace essence</h2>
+          <h2 class="composer-title">${t('essence.title')}</h2>
           <div class="page-header-actions">${actionsHtml}</div>
         </div>
         <div class="composer-body">
@@ -336,12 +338,19 @@ function cancelEditEssence() {
   renderContent();
 }
 
+const statLabelKeys = {
+  memories: 'stats.memories',
+  themes: 'stats.themes',
+  refinedTurns: 'stats.refinedTurns',
+  sessions: 'stats.sessions',
+};
+
 function renderStats(stats) {
   const grid = $('#statsGrid');
   if (!grid) return;
   const entries = Object.entries(stats);
   if (entries.length === 0) {
-    grid.innerHTML = '<div class="empty-state">Loading stats…</div>';
+    grid.innerHTML = `<div class="empty-state">${t('stats.loading')}</div>`;
     return;
   }
   grid.innerHTML = entries
@@ -349,7 +358,7 @@ function renderStats(stats) {
       ([key, value]) => `
       <div class="stat-card">
         <div class="stat-value">${escapeHtml(String(value))}</div>
-        <div class="stat-label">${escapeHtml(key.replace(/([A-Z])/g, ' $1').toLowerCase())}</div>
+        <div class="stat-label">${escapeHtml(statLabelKeys[key] ? t(statLabelKeys[key]) : key)}</div>
       </div>
     `,
     )
@@ -367,7 +376,9 @@ async function loadWorkspace() {
     renderStats(data.stats);
     const contentEl = $('#essenceContent');
     if (contentEl && !state.editingEssence) {
-      contentEl.innerHTML = data.essence ? renderMarkdown(data.essence) : '<span class="muted">No essence yet. Click Edit to write one.</span>';
+      contentEl.innerHTML = data.essence
+        ? renderMarkdown(data.essence)
+        : `<span class="muted">${t('essence.empty')}</span>`;
     }
   }
   if (state.currentView === 'settings') {
@@ -386,9 +397,9 @@ async function saveEssence() {
     if (state.data.workspace) state.data.workspace.essence = content;
     state.editingEssence = false;
     renderContent();
-    setStatus(status, 'Essence saved.', 'success');
+    setStatus(status, t('essence.saved'), 'success');
   } catch (err) {
-    setStatus(status, `Save failed: ${err.message}`, 'error');
+    setStatus(status, t('error.saveFailed', { err: err.message }), 'error');
   }
 }
 
@@ -396,14 +407,14 @@ async function syncIndex() {
   const btn = $('#syncTopbarBtn');
   if (!btn) return;
   const original = btn.textContent;
-  btn.textContent = 'Syncing…';
+  btn.textContent = t('sync.syncing');
   btn.disabled = true;
   try {
     await api('/api/sync', { method: 'POST' });
     await loadWorkspace();
-    btn.textContent = 'Synced';
+    btn.textContent = t('sync.synced');
   } catch (err) {
-    btn.textContent = `Failed: ${err.message}`;
+    btn.textContent = t('sync.failed', { err: err.message });
   }
   setTimeout(() => {
     btn.textContent = original;
@@ -417,19 +428,19 @@ function renderThemesView() {
   return `
     <section class="view view-active" data-view="themes">
       <div class="page-header">
-        <h1 class="page-title">Themes</h1>
-        <span class="badge" id="themeCountBadge">0 themes</span>
+        <h1 class="page-title">${t('nav.themes')}</h1>
+        <span class="badge" id="themeCountBadge">${t('themes.countMany', { n: 0 })}</span>
       </div>
       <div class="search-table-wrap">
         <table class="search-table" id="themesTable">
           <thead>
             <tr>
-              <th>Theme</th>
-              <th>Created</th>
-              <th>Updated</th>
-              <th class="search-number">Turns</th>
-              <th class="search-number">Memories</th>
-              <th class="search-actions">Actions</th>
+              <th>${t('themes.col.theme')}</th>
+              <th>${t('themes.col.created')}</th>
+              <th>${t('themes.col.updated')}</th>
+              <th class="search-number">${t('themes.col.turns')}</th>
+              <th class="search-number">${t('themes.col.memories')}</th>
+              <th class="search-actions">${t('themes.col.actions')}</th>
             </tr>
           </thead>
           <tbody id="themesTableBody"></tbody>
@@ -447,9 +458,10 @@ function renderThemes() {
   const tbody = $('#themesTableBody');
   const badge = $('#themeCountBadge');
   if (!tbody) return;
-  badge.textContent = `${state.data.themes.length} theme${state.data.themes.length === 1 ? '' : 's'}`;
+  const themeCount = state.data.themes.length;
+  badge.textContent = t(themeCount === 1 ? 'themes.countOne' : 'themes.countMany', { n: themeCount });
   if (state.data.themes.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No themes yet.</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">${t('themes.empty')}</td></tr>`;
     return;
   }
   tbody.innerHTML = state.data.themes
@@ -460,14 +472,14 @@ function renderThemes() {
           <span class="theme-icon">◆</span>
           ${escapeHtml(theme.displayName || theme.name)}
         </td>
-        <td>${escapeHtml(theme.createdAt ? new Date(theme.createdAt).toLocaleString() : '-')}</td>
-        <td>${escapeHtml(theme.updatedAt ? new Date(theme.updatedAt).toLocaleString() : '-')}</td>
+        <td>${escapeHtml(theme.createdAt ? new Date(theme.createdAt).toLocaleString(getLocale()) : '-')}</td>
+        <td>${escapeHtml(theme.updatedAt ? new Date(theme.updatedAt).toLocaleString(getLocale()) : '-')}</td>
         <td class="search-number">${theme.turnCount ?? 0}</td>
         <td class="search-number">${theme.memoryCount ?? 0}</td>
         <td class="search-actions">
           <button class="btn btn-danger btn-sm" data-action="delete-theme" data-theme="${escapeHtml(
             theme.name,
-          )}" type="button">Delete</button>
+          )}" type="button">${t('common.delete')}</button>
         </td>
       </tr>
     `,
@@ -482,14 +494,14 @@ async function loadThemes() {
 
 function renderThemeDetailView() {
   const detail = state.data.themeDetail;
-  const title = detail?.displayName || state.currentTheme || 'Theme';
+  const title = detail?.displayName || state.currentTheme || t('theme.detailFallback');
   if (!detail) {
     return `
       <section class="view view-active" data-view="theme-detail">
         <div class="page-header">
           <h1 class="page-title">${escapeHtml(title)}</h1>
         </div>
-        <div class="empty-state">Loading theme…</div>
+        <div class="empty-state">${t('theme.loading')}</div>
       </section>
     `;
   }
@@ -501,11 +513,13 @@ function renderThemeDetailView() {
           <div class="muted">${escapeHtml(state.currentTheme || '')}</div>
         </div>
         <div class="inline-edit">
-          <input id="themeDisplayName" type="text" value="${escapeHtml(title)}" placeholder="Display name" />
-          <button id="renameThemeBtn" class="btn btn-primary btn-sm" type="button">Rename</button>
+          <input id="themeDisplayName" type="text" value="${escapeHtml(title)}" placeholder="${escapeHtml(
+            t('theme.displayNamePlaceholder'),
+          )}" />
+          <button id="renameThemeBtn" class="btn btn-primary btn-sm" type="button">${t('common.rename')}</button>
           <div class="page-header-actions">
-            <button class="btn btn-secondary btn-sm" id="backToThemesBtn" type="button">Back</button>
-            <button class="btn btn-danger btn-sm" id="deleteThemeBtn" type="button">Delete</button>
+            <button class="btn btn-secondary btn-sm" id="backToThemesBtn" type="button">${t('common.back')}</button>
+            <button class="btn btn-danger btn-sm" id="deleteThemeBtn" type="button">${t('common.delete')}</button>
           </div>
         </div>
       </div>
@@ -529,7 +543,7 @@ function renderThemeTimeline() {
   if (!timeline) return;
   const detail = state.data.themeDetail;
   if (!detail || !detail.items || detail.items.length === 0) {
-    timeline.innerHTML = '<div class="empty-state">No turns or memories linked to this theme.</div>';
+    timeline.innerHTML = `<div class="empty-state">${t('theme.timelineEmpty')}</div>`;
     return;
   }
 
@@ -546,12 +560,14 @@ function renderThemeTimeline() {
           <div class="timeline-item hit" data-session="${escapeHtml(turn.sessionId)}" data-turn="${turn.turnId}">
             <div class="timeline-dot"></div>
             <div class="timeline-card">
-              <div class="timeline-meta">${escapeHtml(turn.sessionId)} · turn ${turn.turnId}</div>
-              <h4>${escapeHtml(turn.summary || 'Untitled turn')}</h4>
+              <div class="timeline-meta">${escapeHtml(
+                t('theme.turnMeta', { sessionId: turn.sessionId, turnId: turn.turnId }),
+              )}</div>
+              <h4>${escapeHtml(turn.summary || t('theme.untitledTurn'))}</h4>
               ${bullets}
               <div class="tag-list">
                 ${tags
-                  .map((t) => `<span class="tag${t.includes('.') ? ' file' : ''}">${escapeHtml(t)}</span>`)
+                  .map((tag) => `<span class="tag${tag.includes('.') ? ' file' : ''}">${escapeHtml(tag)}</span>`)
                   .join('')}
               </div>
             </div>
@@ -562,7 +578,7 @@ function renderThemeTimeline() {
       return `
         <div class="timeline-item memory">
           <div class="timeline-header">
-            <span class="badge">Memory</span>
+            <span class="badge">${t('theme.memoryBadge')}</span>
             <span class="timeline-time">${formatDate(memory.timestamp)}</span>
           </div>
           <div class="timeline-card">
@@ -599,13 +615,13 @@ async function renameTheme() {
     await loadThemes();
     renderTopbar();
   } catch (err) {
-    alert(`Rename failed: ${err.message}`);
+    alert(t('error.renameFailed', { err: err.message }));
   }
 }
 
 async function deleteTheme(themeName) {
   if (!themeName) return;
-  if (!confirm(`Delete theme "${themeName}"?`)) return;
+  if (!confirm(t('confirm.deleteTheme', { name: themeName }))) return;
   try {
     await deleteThemeApi(themeName);
     if (state.currentTheme === themeName) {
@@ -615,7 +631,7 @@ async function deleteTheme(themeName) {
     await loadThemes();
     await loadWorkspace();
   } catch (err) {
-    alert(`Delete failed: ${err.message}`);
+    alert(t('error.deleteFailed', { err: err.message }));
   }
 }
 
@@ -623,8 +639,8 @@ async function deleteTheme(themeName) {
 
 async function deleteSearchView(key) {
   if (!key) return;
-  if (!confirm(`Delete search view "${key}"?`)) return;
-  const deleteRefinedTurns = confirm('Also delete the refined turns referenced by this view?\n\nCancel keeps the refined turns.');
+  if (!confirm(t('confirm.deleteSearchView', { key }))) return;
+  const deleteRefinedTurns = confirm(t('confirm.deleteRefinedTurns'));
   try {
     await deleteSearchViewApi(key, deleteRefinedTurns);
     if (state.currentSearchKey === key) {
@@ -634,7 +650,7 @@ async function deleteSearchView(key) {
     await loadSearches();
     await loadWorkspace();
   } catch (err) {
-    alert(`Delete failed: ${err.message}`);
+    alert(t('error.deleteFailed', { err: err.message }));
   }
 }
 
@@ -644,9 +660,9 @@ function renderSearchesView() {
     return `
       <section class="view view-active" data-view="searches">
         <div class="page-header">
-          <h1 class="page-title">Saved Searches</h1>
+          <h1 class="page-title">${t('searches.title')}</h1>
         </div>
-        <div class="empty-state">No saved search views yet.</div>
+        <div class="empty-state">${t('searches.empty')}</div>
       </section>
     `;
   }
@@ -655,13 +671,13 @@ function renderSearchesView() {
       (s) => `
       <tr class="search-row" data-key="${escapeHtml(s.key)}">
         <td class="search-cell search-query">${escapeHtml(s.query || s.key)}</td>
-        <td class="search-cell">${escapeHtml(s.createdAt ? new Date(s.createdAt).toLocaleString() : '-')}</td>
+        <td class="search-cell">${escapeHtml(s.createdAt ? new Date(s.createdAt).toLocaleString(getLocale()) : '-')}</td>
         <td class="search-cell search-number">${s.totalHits ?? s.resultCount ?? 0}</td>
         <td class="search-cell search-number">${s.clusterCount ?? 0}</td>
         <td class="search-actions">
           <button class="btn btn-danger btn-sm" data-action="delete-search" data-key="${escapeHtml(
             s.key,
-          )}" type="button">Delete</button>
+          )}" type="button">${t('common.delete')}</button>
         </td>
       </tr>
     `,
@@ -670,17 +686,17 @@ function renderSearchesView() {
   return `
     <section class="view view-active" data-view="searches">
       <div class="page-header">
-        <h1 class="page-title">Saved Searches</h1>
+        <h1 class="page-title">${t('searches.title')}</h1>
       </div>
       <div class="search-table-wrap">
         <table class="search-table" id="searchesTable">
           <thead>
             <tr>
-              <th>Keywords</th>
-              <th>Created</th>
-              <th class="search-number">Hits</th>
-              <th class="search-number">Clusters</th>
-              <th class="search-actions">Actions</th>
+              <th>${t('searches.col.keywords')}</th>
+              <th>${t('searches.col.created')}</th>
+              <th class="search-number">${t('searches.col.hits')}</th>
+              <th class="search-number">${t('searches.col.clusters')}</th>
+              <th class="search-actions">${t('searches.col.actions')}</th>
             </tr>
           </thead>
           <tbody>${rowsHtml}</tbody>
@@ -714,9 +730,9 @@ function renderSearchDetailView() {
     return `
       <section class="view view-active" data-view="search-detail">
         <div class="page-header">
-          <h1 class="page-title">Search Detail</h1>
+          <h1 class="page-title">${t('searchDetail.title')}</h1>
         </div>
-        <div class="empty-state">Loading search view…</div>
+        <div class="empty-state">${t('searchDetail.loading')}</div>
       </section>
     `;
   }
@@ -726,8 +742,10 @@ function renderSearchDetailView() {
       <div class="timeline-item ${turn.isHit ? 'hit' : ''}" data-session="${escapeHtml(turn.sessionId)}" data-turn="${turn.turnId}" style="--i:${idx}">
         <div class="timeline-dot"></div>
         <div class="timeline-card">
-          <div class="timeline-meta">${escapeHtml(turn.sessionId)} · turn ${turn.turnId}</div>
-          <div class="timeline-summary">${escapeHtml(turn.summary || 'No summary')}</div>
+          <div class="timeline-meta">${escapeHtml(
+            t('theme.turnMeta', { sessionId: turn.sessionId, turnId: turn.turnId }),
+          )}</div>
+          <div class="timeline-summary">${escapeHtml(turn.summary || t('common.noSummary'))}</div>
         </div>
       </div>
     `,
@@ -738,16 +756,22 @@ function renderSearchDetailView() {
       <div class="page-header">
         <div>
           <h1 class="page-title">${escapeHtml(detail.query || detail.key)}</h1>
-          <div class="muted">${detail.totalHits ?? 0} hits · ${detail.clusterCount ?? 0} clusters · ${escapeHtml(
-            detail.createdAt ? new Date(detail.createdAt).toLocaleString() : '',
+          <div class="muted">${escapeHtml(
+            t('searchDetail.meta', {
+              hits: detail.totalHits ?? 0,
+              clusters: detail.clusterCount ?? 0,
+              createdAt: detail.createdAt ? new Date(detail.createdAt).toLocaleString(getLocale()) : '',
+            }),
           )}</div>
         </div>
         <div class="page-header-actions">
-          <button class="btn btn-secondary btn-sm" id="backToSearchesBtn" type="button">Back</button>
-          <button class="btn btn-danger btn-sm" id="deleteSearchViewBtn" type="button">Delete</button>
+          <button class="btn btn-secondary btn-sm" id="backToSearchesBtn" type="button">${t('common.back')}</button>
+          <button class="btn btn-danger btn-sm" id="deleteSearchViewBtn" type="button">${t('common.delete')}</button>
         </div>
       </div>
-      <div class="timeline" id="searchTimeline">${turnsHtml || '<div class="empty-state">No refined turns.</div>'}</div>
+      <div class="timeline" id="searchTimeline">${turnsHtml || `<div class="empty-state">${t(
+        'searchDetail.noTurns',
+      )}</div>`}</div>
     </section>
   `;
 }
@@ -789,23 +813,25 @@ function renderList(items, empty) {
 async function showRefinedTurnModal(sessionId, turnId) {
   try {
     const turn = await api(`/api/refined-turn/${encodeURIComponent(sessionId)}/${turnId}`);
-    const factsHtml = renderList(turn.facts, 'No facts');
-    const notesHtml = renderList(turn.notes, 'No notes');
+    const factsHtml = renderList(turn.facts, t('modal.noFacts'));
+    const notesHtml = renderList(turn.notes, t('modal.noNotes'));
     const modal = document.createElement('div');
     modal.className = 'modal-backdrop';
     modal.innerHTML = `
       <div class="modal">
         <div class="modal-header">
-          <h3>${escapeHtml(sessionId)} · turn ${turnId}</h3>
+          <h3>${escapeHtml(t('theme.turnMeta', { sessionId, turnId }))}</h3>
           <button class="modal-close" type="button">×</button>
         </div>
         <div class="modal-body">
-          <div class="muted">${escapeHtml(turn.timestamp ? new Date(turn.timestamp).toLocaleString() : '')}</div>
-          <h4>Summary</h4>
-          <p>${escapeHtml(turn.summary || 'No summary')}</p>
-          <h4>Facts</h4>
+          <div class="muted">${escapeHtml(
+            turn.timestamp ? new Date(turn.timestamp).toLocaleString(getLocale()) : '',
+          )}</div>
+          <h4>${t('modal.summary')}</h4>
+          <p>${escapeHtml(turn.summary || t('common.noSummary'))}</p>
+          <h4>${t('modal.facts')}</h4>
           ${factsHtml}
-          <h4>Notes</h4>
+          <h4>${t('modal.notes')}</h4>
           ${notesHtml}
         </div>
       </div>
@@ -816,7 +842,7 @@ async function showRefinedTurnModal(sessionId, turnId) {
       if (e.target === modal) modal.remove();
     });
   } catch (err) {
-    alert(`Failed to load turn: ${err.message}`);
+    alert(t('error.loadTurnFailed', { err: err.message }));
   }
 }
 
@@ -824,8 +850,10 @@ function renderDecisionsView() {
   return `
     <section class="view view-active" data-view="decisions">
       <div class="page-header">
-        <h1 class="page-title">Recent Decisions</h1>
-        <input type="search" class="search-input" id="decisionsFilter" placeholder="Filter decisions…" value="${escapeHtml(
+        <h1 class="page-title">${t('decisions.title')}</h1>
+        <input type="search" class="search-input" id="decisionsFilter" placeholder="${escapeHtml(
+          t('decisions.filterPlaceholder'),
+        )}" value="${escapeHtml(
           state.decisionsFilter,
         )}" />
       </div>
@@ -852,7 +880,7 @@ function renderDecisions() {
   });
 
   if (filtered.length === 0) {
-    list.innerHTML = '<div class="empty-state">No matching decisions.</div>';
+    list.innerHTML = `<div class="empty-state">${t('decisions.empty')}</div>`;
     return;
   }
 
@@ -861,12 +889,14 @@ function renderDecisions() {
       (d) => `
       <div class="decision-row">
         <div class="decision-row-main">
-          <div class="decision-row-title">Turn ${d.turnId} · ${escapeHtml(d.sessionId)}</div>
+          <div class="decision-row-title">${escapeHtml(
+            t('decisions.turnMeta', { turnId: d.turnId, sessionId: d.sessionId }),
+          )}</div>
           <div class="decision-row-summary">${escapeHtml(d.summary)}</div>
           <div class="tag-list">
             ${d.decisions.map((dec) => `<span class="tag">${escapeHtml(dec)}</span>`).join('')}
             ${d.files.map((f) => `<span class="tag file">${escapeHtml(f)}</span>`).join('')}
-            ${d.tags.map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join('')}
+            ${d.tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}
           </div>
         </div>
         <div class="decision-row-meta">
@@ -889,15 +919,15 @@ function renderMemoriesView() {
   return `
     <section class="view view-active" data-view="memories">
       <div class="page-header">
-        <h1 class="page-title">Memories</h1>
-        <button class="btn btn-primary btn-sm" id="newFolderTopBtn" type="button">+ New folder</button>
+        <h1 class="page-title">${t('nav.memories')}</h1>
+        <button class="btn btn-primary btn-sm" id="newFolderTopBtn" type="button">${t('memories.newFolder')}</button>
       </div>
       <div class="memories-layout">
         <div class="folder-tree" id="folderTree">
-          <div class="empty-state">Loading folders…</div>
+          <div class="empty-state">${t('memories.loadingFolders')}</div>
         </div>
         <div class="memory-editor" id="memoryEditor">
-          <div class="empty-state">Select a folder or file to get started.</div>
+          <div class="empty-state">${t('memories.selectPrompt')}</div>
         </div>
       </div>
     </section>
@@ -948,9 +978,15 @@ function renderFolderRow(node, path, depth = 0) {
           ${files.length > 0 ? `<span class="folder-count">${files.length}</span>` : ''}
         </span>
         <span class="folder-actions">
-          <button class="icon-btn" data-action="new-file" data-folder="${escapeHtml(path)}" title="New file">✚</button>
-          <button class="icon-btn" data-action="rename" data-folder="${escapeHtml(path)}" title="Rename">✎</button>
-          ${!isRoot ? `<button class="icon-btn" data-action="delete" data-folder="${escapeHtml(path)}" title="Delete">🗑</button>` : ''}
+          <button class="icon-btn" data-action="new-file" data-folder="${escapeHtml(path)}" title="${escapeHtml(
+            t('memories.newFileTitle'),
+          )}">✚</button>
+          <button class="icon-btn" data-action="rename" data-folder="${escapeHtml(path)}" title="${escapeHtml(
+            t('common.rename'),
+          )}">✎</button>
+          ${!isRoot ? `<button class="icon-btn" data-action="delete" data-folder="${escapeHtml(path)}" title="${escapeHtml(
+            t('common.delete'),
+          )}">🗑</button>` : ''}
         </span>
       </div>
       ${filesHtml}
@@ -963,11 +999,13 @@ function renderFolderTree() {
   const tree = $('#folderTree');
   if (!tree) return;
   if (state.memoriesError) {
-    tree.innerHTML = `<div class="empty-state" style="color:var(--err)">Failed to load memories.<br><small>${escapeHtml(state.memoriesError)}</small></div>`;
+    tree.innerHTML = `<div class="empty-state" style="color:var(--err)">${t('memories.loadFailed')}<br><small>${escapeHtml(
+      state.memoriesError,
+    )}</small></div>`;
     return;
   }
   if (!state.data.memories) {
-    tree.innerHTML = '<div class="empty-state">Loading folders…</div>';
+    tree.innerHTML = `<div class="empty-state">${t('memories.loadingFolders')}</div>`;
     return;
   }
 
@@ -975,7 +1013,7 @@ function renderFolderTree() {
   const rootsHtml = (virtualRoot.children || [])
     .map((root) => renderFolderRow(root, root.name))
     .join('');
-  tree.innerHTML = rootsHtml || '<div class="empty-state">No folders found.</div>';
+  tree.innerHTML = rootsHtml || `<div class="empty-state">${t('memories.noFolders')}</div>`;
 
   tree.querySelectorAll('.folder-row-main').forEach((el) => {
     el.addEventListener('click', (e) => {
@@ -1017,7 +1055,7 @@ function getFolderNode(root, folderPath) {
 function renderFileList(folderPath) {
   const node = getFolderNode(state.data.memories, folderPath);
   if (!node || !node.files.length) {
-    return '<div class="empty-state" style="min-height:120px">No files in this folder.</div>';
+    return `<div class="empty-state" style="min-height:120px">${t('memories.noFiles')}</div>`;
   }
   const filesHtml = node.files
     .map(
@@ -1042,21 +1080,23 @@ function renderMemoryEditor() {
   if (file) {
     const editing = state.editingMemory || file.isNew;
     const tagsHtml = (Array.isArray(file.tags) ? file.tags : [])
-      .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
+      .map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`)
       .join('');
     const tagsEditValue = Array.isArray(file.tags) ? file.tags.join(', ') : '';
     const bodyHtml = editing
       ? `
-        <label class="field-label">Title</label>
+        <label class="field-label">${t('memories.fieldTitle')}</label>
         <input type="text" class="composer-input" id="memoryTitle" value="${escapeHtml(
           file.title || '',
-        )}" placeholder="Memory title" />
-        <label class="field-label">Tags</label>
+        )}" placeholder="${escapeHtml(t('memories.titlePlaceholder'))}" />
+        <label class="field-label">${t('memories.fieldTags')}</label>
         <input type="text" class="composer-input" id="memoryTags" value="${escapeHtml(
           tagsEditValue,
-        )}" placeholder="tag1, tag2" />
-        <label class="field-label">Content</label>
-        <textarea class="composer-textarea" id="memoryContent" placeholder="Write markdown content…">${escapeHtml(
+        )}" placeholder="${escapeHtml(t('memories.tagsPlaceholder'))}" />
+        <label class="field-label">${t('memories.fieldContent')}</label>
+        <textarea class="composer-textarea" id="memoryContent" placeholder="${escapeHtml(
+          t('memories.contentPlaceholder'),
+        )}">${escapeHtml(
           file.content || '',
         )}</textarea>
       `
@@ -1066,18 +1106,18 @@ function renderMemoryEditor() {
           <div class="tag-list">${tagsHtml}</div>
         </div>
         <div class="memory-content md-content">${
-          file.content ? renderMarkdown(file.content) : '<span class="muted">Empty file.</span>'
+          file.content ? renderMarkdown(file.content) : `<span class="muted">${t('memories.emptyFile')}</span>`
         }</div>
       `;
     const actionsHtml = editing
       ? `
-        <button class="btn btn-primary btn-sm" id="saveMemoryBtn" type="button">Save</button>
-        <button class="btn btn-secondary btn-sm" id="cancelEditMemoryBtn" type="button">Cancel</button>
-        ${!file.isNew ? '<button class="btn btn-danger btn-sm" id="deleteMemoryBtn" type="button">Delete</button>' : ''}
+        <button class="btn btn-primary btn-sm" id="saveMemoryBtn" type="button">${t('common.save')}</button>
+        <button class="btn btn-secondary btn-sm" id="cancelEditMemoryBtn" type="button">${t('common.cancel')}</button>
+        ${!file.isNew ? `<button class="btn btn-danger btn-sm" id="deleteMemoryBtn" type="button">${t('common.delete')}</button>` : ''}
       `
       : `
-        <button class="btn btn-secondary btn-sm" id="editMemoryBtn" type="button">Edit</button>
-        <button class="btn btn-danger btn-sm" id="deleteMemoryBtn" type="button">Delete</button>
+        <button class="btn btn-secondary btn-sm" id="editMemoryBtn" type="button">${t('common.edit')}</button>
+        <button class="btn btn-danger btn-sm" id="deleteMemoryBtn" type="button">${t('common.delete')}</button>
       `;
     composerHtml = `
       <div class="composer-card memory-composer">
@@ -1098,7 +1138,7 @@ function renderMemoryEditor() {
       <div class="empty-state" style="min-height:180px">
         <div>
           <div style="font-size:18px;margin-bottom:8px">📝</div>
-          <div>Select a file to view, or choose a folder and create a new file.</div>
+          <div>${t('memories.selectFilePrompt')}</div>
         </div>
       </div>
     `;
@@ -1143,55 +1183,55 @@ async function selectFile(folder, key) {
     renderFolderTree();
     renderMemoryEditor();
   } catch (err) {
-    alert(`Failed to load memory: ${err.message}`);
+    alert(t('error.loadMemoryFailed', { err: err.message }));
   }
 }
 
 async function createFolderPrompt(parentFolder) {
   const parent = parentFolder && state.memoryFolders.includes(parentFolder) ? parentFolder : 'memory';
-  const name = prompt('New folder name:', '');
+  const name = prompt(t('memories.newFolderNamePrompt'), '');
   if (!name) return;
   const folderPath = `${parent}/${name.trim()}`.replace(/\/+/g, '/');
   try {
     const result = await createMemoryFolder(folderPath);
-    if (!result.ok) throw new Error(result.error || 'Failed to create folder');
+    if (!result.ok) throw new Error(result.error || t('error.createFolderFallback'));
     state.selectedMemoryFolder = folderPath;
     await loadMemories();
   } catch (err) {
-    alert(`Create folder failed: ${err.message}`);
+    alert(t('error.createFolderFailed', { err: err.message }));
   }
 }
 
 async function renameFolderPrompt(folderPath) {
-  const newPath = prompt('Rename folder to:', folderPath);
+  const newPath = prompt(t('memories.renameFolderToPrompt'), folderPath);
   if (!newPath || newPath === folderPath) return;
   try {
     const result = await renameMemoryFolder(folderPath, newPath);
-    if (!result.ok) throw new Error(result.error || 'Failed to rename folder');
+    if (!result.ok) throw new Error(result.error || t('error.renameFolderFallback'));
     if (state.selectedMemoryFolder === folderPath) state.selectedMemoryFolder = newPath;
     await loadMemories();
   } catch (err) {
-    alert(`Rename folder failed: ${err.message}`);
+    alert(t('error.renameFolderFailed', { err: err.message }));
   }
 }
 
 async function deleteFolderPrompt(folderPath) {
-  if (!confirm(`Delete folder "${folderPath}" and all its contents? This cannot be undone.`)) return;
+  if (!confirm(t('confirm.deleteFolder', { path: folderPath }))) return;
   try {
     const result = await deleteMemoryFolder(folderPath, true);
-    if (!result.ok) throw new Error(result.error || 'Failed to delete folder');
+    if (!result.ok) throw new Error(result.error || t('error.deleteFolderFallback'));
     if (state.selectedMemoryFolder === folderPath) {
       state.selectedMemoryFolder = null;
       state.selectedMemoryFile = null;
     }
     await loadMemories();
   } catch (err) {
-    alert(`Delete folder failed: ${err.message}`);
+    alert(t('error.deleteFolderFailed', { err: err.message }));
   }
 }
 
 async function createFilePrompt(folderPath) {
-  const key = prompt('New memory key:', '');
+  const key = prompt(t('memories.newKeyPrompt'), '');
   if (!key) return;
   state.selectedMemoryFile = { folder: folderPath, key, title: '', tags: [], content: '', isNew: true };
   state.selectedMemoryFolder = folderPath;
@@ -1203,7 +1243,7 @@ async function createFilePrompt(folderPath) {
 function parseTagsInput(value) {
   return String(value || '')
     .split(',')
-    .map((t) => t.trim())
+    .map((raw) => raw.trim())
     .filter(Boolean);
 }
 
@@ -1216,27 +1256,27 @@ async function saveSelectedMemory() {
   const status = $('#composerStatus');
   try {
     const result = await writeMemory(file.folder, file.key, { content, title, tags });
-    if (!result.ok) throw new Error(result.error || 'Failed to save memory');
-    setStatus(status, 'Memory saved.', 'success');
+    if (!result.ok) throw new Error(result.error || t('error.saveMemoryFallback'));
+    setStatus(status, t('memories.saved'), 'success');
     state.editingMemory = false;
     state.selectedMemoryFile = { ...file, title, tags, content, isNew: false };
     await loadMemories();
   } catch (err) {
-    setStatus(status, `Save failed: ${err.message}`, 'error');
+    setStatus(status, t('error.saveFailed', { err: err.message }), 'error');
   }
 }
 
 async function deleteSelectedMemory() {
   const file = state.selectedMemoryFile;
   if (!file) return;
-  if (!confirm(`Delete "${file.folder}/${file.key}"? This cannot be undone.`)) return;
+  if (!confirm(t('confirm.deleteMemoryFile', { path: `${file.folder}/${file.key}` }))) return;
   try {
     const result = await deleteMemoryFile(file.folder, file.key);
-    if (!result.ok) throw new Error(result.error || 'Failed to delete memory');
+    if (!result.ok) throw new Error(result.error || t('error.deleteMemoryFallback'));
     state.selectedMemoryFile = null;
     await loadMemories();
   } catch (err) {
-    alert(`Delete memory failed: ${err.message}`);
+    alert(t('error.deleteMemoryFailed', { err: err.message }));
   }
 }
 
@@ -1306,50 +1346,58 @@ async function loadMemories() {
 function renderSettingsView() {
   const ws = state.data.workspace || {};
   const autoVis = localStorage.getItem(LS_KEY_AUTO_VIS) === 'true';
+  const currentLocale = getLocale();
   return `
     <section class="view view-active" data-view="settings">
       <div class="page-header">
-        <h1 class="page-title">Settings</h1>
+        <h1 class="page-title">${t('nav.settings')}</h1>
       </div>
       <div class="settings-grid">
         <div class="card">
           <div class="card-header">
-            <h2 class="card-title">Paths</h2>
+            <h2 class="card-title">${t('settings.paths')}</h2>
           </div>
           <div class="card-body">
             <div class="info-row">
-              <span class="info-label">Workspace ID</span>
+              <span class="info-label">${t('settings.workspaceId')}</span>
               <code class="info-value" id="settingsWorkspaceId">${escapeHtml(ws.id || '–')}</code>
             </div>
             <div class="info-row">
-              <span class="info-label">Workspace path</span>
+              <span class="info-label">${t('settings.workspacePath')}</span>
               <code class="info-value" id="settingsCwd">${escapeHtml(ws.cwd || '–')}</code>
             </div>
             <div class="info-row">
-              <span class="info-label">Store root</span>
+              <span class="info-label">${t('settings.storeRoot')}</span>
               <code class="info-value" id="settingsStoreRoot">${escapeHtml(ws.storePath || '–')}</code>
             </div>
             <div class="info-row">
-              <span class="info-label">MCP config hint</span>
+              <span class="info-label">${t('settings.mcpConfigHint')}</span>
               <code class="info-value">~/.kimi-code/mcp.json</code>
             </div>
           </div>
         </div>
         <div class="card">
           <div class="card-header">
-            <h2 class="card-title">Environment</h2>
+            <h2 class="card-title">${t('settings.environment')}</h2>
           </div>
           <div class="card-body">
             <label class="toggle-row">
-              <span>Auto-open dashboard (KIMI_MEMORY_AUTO_VIS)</span>
+              <span>${t('settings.autoVis')}</span>
               <input type="checkbox" id="autoVisToggle" ${autoVis ? 'checked' : ''} />
             </label>
-            <p class="help-text">When enabled, the dashboard will open automatically on startup. This toggle stores a local preference; the actual environment variable must be set in your Kimi Code/MCP configuration.</p>
+            <p class="help-text">${t('settings.autoVisHelp')}</p>
+            <label class="toggle-row">
+              <span>${t('settings.language')}</span>
+              <select id="localeSelect" class="lang-select">
+                <option value="en" ${currentLocale === 'en' ? 'selected' : ''}>English</option>
+                <option value="zh-CN" ${currentLocale === 'zh-CN' ? 'selected' : ''}>简体中文</option>
+              </select>
+            </label>
           </div>
         </div>
         <div class="card">
           <div class="card-header">
-            <h2 class="card-title">Links</h2>
+            <h2 class="card-title">${t('settings.links')}</h2>
           </div>
           <div class="card-body">
             <div class="link-list">
@@ -1374,6 +1422,9 @@ function updateSettingsView() {
 function bindSettingsView() {
   $('#autoVisToggle').addEventListener('change', (e) => {
     localStorage.setItem(LS_KEY_AUTO_VIS, String(e.target.checked));
+  });
+  $('#localeSelect').addEventListener('change', (e) => {
+    setLocale(e.target.value);
   });
 }
 
@@ -1457,6 +1508,8 @@ function handleContentClick(e) {
 function init() {
   state.sidebarCollapsed = getInitialCollapsed();
   updateCollapsedClass();
+
+  onLocaleChange(renderAll);
 
   $('#content').addEventListener('click', handleContentClick);
 

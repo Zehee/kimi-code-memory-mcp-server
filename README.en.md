@@ -117,6 +117,18 @@ Remove the injected configuration later:
 kimi-memory-setup --undo
 ```
 
+## Upgrading
+
+```bash
+# 1. Update the global install to the latest version
+npm install -g kimi-code-memory-mcp-server@latest
+
+# 2. Regenerate the injected configuration (AGENTS.md protocol block, memory-manage skill, mcp.json entry)
+kimi-memory-setup --force
+```
+
+Restart `kimi web` afterwards: a running MCP instance still has the old code in memory and only picks up the new version after a restart.
+
 ## Configure Kimi Code CLI (manual)
 
 If you prefer to configure manually, edit `~/.kimi-code/mcp.json` and add the server.
@@ -348,6 +360,7 @@ A standalone web dashboard is available to visualize workspace memory, theme tim
 - Recent decisions list
 - Explicit memory folder browsing
 - Dynamic page title using the workspace folder name
+- Chinese/English UI switching (one click in the topbar; follows the browser language by default)
 
 ## Development
 

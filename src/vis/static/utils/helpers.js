@@ -1,11 +1,12 @@
 import { state, LS_KEY_COLLAPSED } from '../state.js';
+import { t, getLocale } from '../i18n/index.js';
 
 const $ = (sel) => document.querySelector(sel);
 
 export function formatDate(iso) {
   if (!iso) return '–';
   const d = new Date(iso);
-  return isNaN(d.getTime()) ? iso : d.toLocaleString();
+  return isNaN(d.getTime()) ? iso : d.toLocaleString(getLocale());
 }
 
 export function escapeHtml(str) {
@@ -78,17 +79,17 @@ export function sectionFor(view) {
 
 export function workspaceFolderName() {
   const cwd = state.data.workspace?.cwd;
-  if (!cwd) return 'Workspace';
+  if (!cwd) return t('nav.workspace');
   return (
     String(cwd)
       .replace(/\\/g, '/')
       .split('/')
       .filter(Boolean)
-      .pop() || 'Workspace'
+      .pop() || t('nav.workspace')
   );
 }
 
 export function updateDocumentTitle() {
   const folder = workspaceFolderName();
-  document.title = folder === 'Workspace' ? 'Kimi Memory' : `Kimi Memory - ${folder}`;
+  document.title = folder === t('nav.workspace') ? t('docTitle') : t('docTitle.withFolder', { folder });
 }

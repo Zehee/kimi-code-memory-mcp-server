@@ -118,6 +118,18 @@ kimi-memory-setup --dry-run
 kimi-memory-setup --undo
 ```
 
+## 升级
+
+```bash
+# 1. 全局更新到最新版本
+npm install -g kimi-code-memory-mcp-server@latest
+
+# 2. 重新生成注入的配置（AGENTS.md 协议块、memory-manage Skill、mcp.json 条目）
+kimi-memory-setup --force
+```
+
+升级后请重启 `kimi web`：正在运行的 MCP 实例内存中仍是旧代码，重启后才会加载新版本。
+
 ## 配置 Kimi Code CLI（手动）
 
 如果你希望手动配置，编辑 `~/.kimi-code/mcp.json` 并添加服务器。
@@ -369,6 +381,7 @@ Agent：[调用 mcp__kimi-memory__tag_theme] theme=cache-design
 - 近期决策列表
 - 显式记忆目录浏览
 - 控制面板标题与面包屑根目录显示为用户工作区文件夹名
+- 中英文界面切换（顶栏一键切换，默认跟随浏览器语言）
 
 ## 开发
 
