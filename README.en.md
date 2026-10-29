@@ -1,14 +1,40 @@
-# Kimi Code Memory MCP Server
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/banner-dark.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="./assets/banner-light.svg" />
+    <img alt="Kimi Memory" src="./assets/banner-light.svg" width="800" />
+  </picture>
 
-[中文](./README.md)
+  **Cross-session long-term memory for Kimi Code CLI — Markdown-first, auditable, owned by you**
 
-[![CI](https://github.com/Zehee/kimi-code-memory-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/Zehee/kimi-code-memory-mcp-server/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/kimi-code-memory-mcp-server.svg?color=brightgreen)](https://www.npmjs.com/package/kimi-code-memory-mcp-server)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+  [中文](./README.md) · [Docs](./docs/ARCHITECTURE.md) · [Demo](#demo) · [Issues](https://github.com/Zehee/kimi-code-memory-mcp-server/issues)
+
+  [![CI](https://github.com/Zehee/kimi-code-memory-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/Zehee/kimi-code-memory-mcp-server/actions/workflows/ci.yml)
+  [![npm version](https://img.shields.io/npm/v/kimi-code-memory-mcp-server.svg?color=brightgreen)](https://www.npmjs.com/package/kimi-code-memory-mcp-server)
+  [![npm downloads](https://img.shields.io/npm/dm/kimi-code-memory-mcp-server.svg)](https://www.npmjs.com/package/kimi-code-memory-mcp-server)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+</div>
 
 A local stdio MCP server that gives [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code) cross-session memory.
 
-> **Note:** This package is published to npm as `kimi-code-memory-mcp-server`. You can install it directly or run it from source.
+## Quickstart in 30 seconds
+
+```bash
+npm install -g kimi-code-memory-mcp-server
+kimi-memory-setup
+```
+
+Restart `kimi web` and your agent gains cross-session memory: decisions, rules, and knowledge accumulate automatically and survive session switches. See [Install](#install) for more options.
+
+## Demo
+
+A real Kimi Code CLI session: the user asks for two cross-session summaries — the evolution of the MCP memory server, then the E2E testing tools. The agent recalls related memories and conversation turns across sessions and synthesizes structured answers.
+
+![Kimi Memory MCP Server demo](https://github.com/user-attachments/assets/a8947676-1487-47ed-8e0c-8d15f8662618)
+
+How `kimi-memory` sees conversation history: vertical bars are turns on the timeline, thick horizontal lines are clusters, gray boxes are sessions, and colored brackets connect related turns across sessions into theme lines.
+
+![Turns, clusters, sessions, and theme tracing over time](./assets/contextFlow.svg)
 
 ## Features
 
@@ -40,13 +66,7 @@ If you only look vertically, these sessions appear independent. But if you scan 
 
 **Theme tracing** is: treat each turn on the timeline as a cylinder, where the height represents the turn's computation/thinking depth, and the color/tag represents the theme. We can even mine from Kimi Code's already compressed and archived context, perform deep horizontal scanning, find cylinders (turns) of the same color, re-establish their associations, form a theme, and store it in memory. Three weeks later, when you're about to upgrade your "registration/login" module or fix a bug, you don't have to re-explain the original design rationale to an agent whose context has been compressed countless times. Instead, your agent can say: "I just traced the 'registration/login' theme. Based on the design decision from three weeks ago and the two adjustments made since then, we should use solution B for the current problem."
 
-> The diagram below shows how `kimi-memory` views conversation history: vertical bars are turns on the timeline, thick horizontal lines are clusters, gray boxes are sessions, and colored brackets connect related turns/clusters across sessions into theme lines.
-
-![Turns, clusters, sessions, and theme tracing over time](./assets/contextFlow.svg)
-
-The animated clip below is a real Kimi Code CLI session using `kimi-memory`. The user asks for two cross-session summaries — first the evolution history of the MCP memory server itself, then the evolution history of the E2E testing tools. The agent retrieves related memories and conversation turns, then synthesizes structured answers.
-
-![Kimi Memory MCP Server demo](https://github.com/user-attachments/assets/a8947676-1487-47ed-8e0c-8d15f8662618)
+The architecture diagram and live-session clip in the [Demo](#demo) section above show this process in action.
 
 Tools: `tag_theme`, `trace_theme`, `list_themes`, `search_context`, `refine_session_turns`, `load_turn_context`.
 

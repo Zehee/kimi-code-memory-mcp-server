@@ -1,14 +1,40 @@
-# Kimi Code Memory MCP Server
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/banner-dark.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="./assets/banner-light.svg" />
+    <img alt="Kimi Memory" src="./assets/banner-light.svg" width="800" />
+  </picture>
 
-[English](./README.en.md)
+  **为 Kimi Code CLI 装上跨会话的长期记忆 —— Markdown 优先、可审计、由你拥有**
 
-[![CI](https://github.com/Zehee/kimi-code-memory-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/Zehee/kimi-code-memory-mcp-server/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/kimi-code-memory-mcp-server.svg?color=brightgreen)](https://www.npmjs.com/package/kimi-code-memory-mcp-server)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+  [English](./README.en.md) · [文档](./docs/ARCHITECTURE.md) · [演示](#演示) · [问题反馈](https://github.com/Zehee/kimi-code-memory-mcp-server/issues)
+
+  [![CI](https://github.com/Zehee/kimi-code-memory-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/Zehee/kimi-code-memory-mcp-server/actions/workflows/ci.yml)
+  [![npm version](https://img.shields.io/npm/v/kimi-code-memory-mcp-server.svg?color=brightgreen)](https://www.npmjs.com/package/kimi-code-memory-mcp-server)
+  [![npm downloads](https://img.shields.io/npm/dm/kimi-code-memory-mcp-server.svg)](https://www.npmjs.com/package/kimi-code-memory-mcp-server)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+</div>
 
 一个为 [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code) 提供跨会话记忆的本地 stdio MCP 服务器。
 
-> **注意：** 本包已发布到 npm，包名为 `kimi-code-memory-mcp-server`。你可以直接安装，也可以从源码运行。
+## 30 秒上手
+
+```bash
+npm install -g kimi-code-memory-mcp-server
+kimi-memory-setup
+```
+
+重启 `kimi web`，你的 Agent 从此拥有跨会话记忆：决策、规则、知识自动沉淀，换会话不丢失。更多安装方式见 [安装](#安装)。
+
+## 演示
+
+真实的 Kimi Code CLI 会话：用户先后要求总结 MCP 记忆服务器与 E2E 测试工具的演进历史，Agent 跨会话召回相关记忆与对话轮次，生成结构化总结。
+
+![Kimi Memory MCP Server 演示](https://github.com/user-attachments/assets/a8947676-1487-47ed-8e0c-8d15f8662618)
+
+`kimi-memory` 眼中的对话历史：竖条是时间轴上的轮次（turn），粗横线是簇，灰框是会话，彩色括号把跨会话的相关轮次串联成主题线。
+
+![时间轴上的 turns、簇、session 与主题追溯](./assets/contextFlow.svg)
 
 
 ## 特性
@@ -41,13 +67,7 @@
 
 **主题追溯**就是：把时间线上的每个 turn 看作一个圆柱，圆柱的高度代表该 turn 的计算/思考深度，颜色/标签代表主题。我们甚至可以从kimi code已经压缩归档的上下文中再次挖掘，进行深度横向扫描，把同色圆柱（对话轮turns）找出来，重新建立关联，组成theme并存入记忆。当我们三周以后准备升级的我们的“注册登录”模块，或者修复某个bug的时候，不是对着已经压缩过无数次上下文的agent，重新描述对其当时的设计思路和方案，而是你的agent说：“刚刚通过trace_theme("注册登录")这个主题，发现根据3周前的设计决策和中间经历的2次调整改进，现在的问题我们应该用方案B。”
 
->下图展示了 `kimi-memory` 如何看待对话历史：竖条是时间轴上的 turn，粗横线是簇，灰框是 session，彩色括号把跨 session 的相关 turns / clusters 串联成主题线。
-
-![时间轴上的 turns、簇、session 与主题追溯](./assets/contextFlow.svg)
-
-下面是一段真实的 Kimi Code CLI 会话动图，使用 `kimi-memory`。用户先后要求总结 MCP 记忆服务器的演进历史、以及 E2E 测试工具的演进历史；Agent 跨会话召回相关记忆与对话 turns，并生成结构化总结。
-
-![Kimi Memory MCP Server 演示](https://github.com/user-attachments/assets/a8947676-1487-47ed-8e0c-8d15f8662618)
+上文[演示](#演示)区的架构图和真实会话动图展示了这一过程。
 
 相关工具：`tag_theme`、`trace_theme`、`list_themes`、`search_context`、`refine_session_turns`、`load_turn_context`。
 
