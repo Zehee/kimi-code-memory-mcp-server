@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **vis**: Chinese/English UI switching for dashboard ([6c29dba](https://github.com/Zehee/kimi-code-memory-mcp-server/commit/6c29dba2322d786c833acabfff6eb82d85735862))
+
+### Changed
+- **readme**: centered header with banner, quickstart and demo section ([33c2a4d](https://github.com/Zehee/kimi-code-memory-mcp-server/commit/33c2a4d36cb075866b7a8d43a68588fc29968e2f))
+
 ## [0.5.0] - 2026-09-15
 
 ### Added
