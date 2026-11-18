@@ -12,6 +12,7 @@
   [![CI](https://github.com/Zehee/kimi-code-memory-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/Zehee/kimi-code-memory-mcp-server/actions/workflows/ci.yml)
   [![npm version](https://img.shields.io/npm/v/kimi-code-memory-mcp-server.svg?color=brightgreen)](https://www.npmjs.com/package/kimi-code-memory-mcp-server)
   [![npm downloads](https://img.shields.io/npm/dm/kimi-code-memory-mcp-server.svg)](https://www.npmjs.com/package/kimi-code-memory-mcp-server)
+  [![Node.js](https://img.shields.io/node/v/kimi-code-memory-mcp-server.svg)](https://nodejs.org/)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 </div>
 
@@ -24,7 +25,7 @@ npm install -g kimi-code-memory-mcp-server
 kimi-memory-setup
 ```
 
-重启 `kimi web`，你的 Agent 从此拥有跨会话记忆：决策、规则、知识自动沉淀，换会话不丢失。更多安装方式见 [安装](#安装)。
+重启 `kimi web`，你的 Agent 从此拥有跨会话记忆：决策、规则、知识自动沉淀，换会话不丢失；浏览器还会自动打开记忆仪表盘，随时查看 Agent 记住了什么。更多安装方式见 [安装](#安装)。
 
 ## 演示
 
@@ -39,66 +40,70 @@ kimi-memory-setup
 
 ## 特性
 
-- **Markdown 优先的记忆** —— 人类可读、适合 git、兼容 LLM。
-- **结构化长期记忆** —— `memory/decisions/`、`memory/knowledge/`、`memory/rules/`、`memory/reference/`。
-- **工作区精要** —— 从 `memory/` 提炼生成的浓缩摘要（≤15 KB）。
-- **跨会话上下文恢复** —— 直接解析 Kimi Code CLI 的 `wire.jsonl`。
-- **主题追溯** —— 将对话轮次和记忆关联到主题，并追踪其演化。
-- **精炼轮次摘要** —— 可在多个主题间共享的轮次级原子摘要。
-- **可重建索引** —— `index.json` 只是缓存，`.md` 文件才是真相来源。
-- **主题与搜索视图删除** —— 支持删除低质量主题或搜索视图，并可选择级联清理其关联的精炼轮次。
-- **可视化仪表盘增强** —— 工作区标题动态显示文件夹名、Markdown 默认只读、轻量级渲染预览、主题/搜索视图删除。
+- **Markdown 优先** —— 记忆可读、可编辑、可用 git 审计，不由黑盒数据库托管。
+- **结构化长期记忆** —— 分类保存决策、规则、知识与参考，并提炼工作区精要。
+- **跨会话恢复** —— 直接读取 Kimi Code CLI 的 `wire.jsonl`，找回近期工作上下文。
+- **主题追溯** —— 把散落在多个会话中的相关轮次重新串联，还原设计与决策的演化。
+- **本地且可重建** —— Markdown 是真相源，索引只是缓存；无需外部数据库或云服务。
+- **可视化仪表盘** —— 随 MCP 自动启动，浏览记忆、主题时间线和近期决策，支持中英文界面。
 
-## 主题追溯
+## 使用示例
 
-传统的上下文管理只关注**纵向**：时间越近越清晰，越久越远越衰减。但这忽略了真实工作的一个核心特征：
+配置完成后，直接用自然语言与 Agent 交互：
 
-> **同一个 workspace 中的多次会话，往往不是单一叙事，而是多条主题线交织并行。**
+```text
+用户：我们决定用 SQLite 作为缓存层，记住这个决策。
+Agent：[remember] 保存到 memory/decisions/
 
-例如：
+用户：我们之前为什么选 SQLite？
+Agent：[search + recall] “因为项目需要本地离线运行，并避免引入额外服务……”
 
-- Session A：开发 auth 鉴权
-- Session B：讨论orders数据表的迁移问题
-- Session C：加密RSA+解密BCrypt+验证码CAPTCHA+Cookie 
-- Session D：fix sql  error bug
-- Session E： 登录Login API设计
+用户：缓存设计是怎么演化的？
+Agent：[trace_theme] 汇总跨会话的相关讨论、决策与调整
+```
 
-如果只看纵向，这些 session 彼此独立。但如果横向扫描，会发现 A、C、E 都属于"注册登录"这一主题。
+## 为什么是 Kimi Memory？
 
-**主题追溯**就是：把时间线上的每个 turn 看作一个圆柱，圆柱的高度代表该 turn 的计算/思考深度，颜色/标签代表主题。我们甚至可以从kimi code已经压缩归档的上下文中再次挖掘，进行深度横向扫描，把同色圆柱（对话轮turns）找出来，重新建立关联，组成theme并存入记忆。当我们三周以后准备升级的我们的“注册登录”模块，或者修复某个bug的时候，不是对着已经压缩过无数次上下文的agent，重新描述对其当时的设计思路和方案，而是你的agent说：“刚刚通过trace_theme("注册登录")这个主题，发现根据3周前的设计决策和中间经历的2次调整改进，现在的问题我们应该用方案B。”
+### 不只记住最近，还能追溯来龙去脉
 
-上文[演示](#演示)区的架构图和真实会话动图展示了这一过程。
+传统上下文管理按时间纵向衰减；真实工作却常常是多条主题线并行。主题追溯会横向扫描历史会话，将同一主题的对话轮次与记忆重新关联。三周后升级登录模块时，Agent 能找到最初的方案、中途的调整和当前结论，而不是让你重新解释一遍。
 
-相关工具：`tag_theme`、`trace_theme`、`list_themes`、`search_context`、`refine_session_turns`、`load_turn_context`。
+完整设计见 [`docs/design-story.md`](./docs/design-story.md)。
 
-## 为什么用 Markdown？
+### 记忆应该透明，并由你拥有
 
-大多数 Agent 记忆系统默认使用向量数据库。这在模糊检索场景有效，但也让记忆变得不透明、难以审计、难以版本控制。
-
-本项目从相反的假设出发：
-
-> 记忆在存储之前应该经过**判断、结构化，并由用户拥有**。
-
-Markdown + YAML frontmatter 带来：
-
-- 完全可读、可编辑
-- 原生支持 git diff
-- 无需外部数据库或云服务
-- 兼容任何能读取文本的 LLM
-
-设计 rationale 见 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)。
+记忆在写入前经过判断与结构化，以 Markdown + YAML frontmatter 保存。你可以直接阅读、编辑、搜索和 `git diff`，也可以在任何能读取文本的 LLM 中使用。架构与设计取舍见 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)。
 
 ## 安装
 
-需要 Node.js ≥ 22.13（内置 `node:sqlite`，无需原生编译依赖）。
+需要 Node.js ≥ 22.13（使用内置 `node:sqlite`，无需原生编译依赖）。常规安装只需运行首屏的两条命令；以下保留升级与高级配置。
 
-### 从 npm 安装（推荐）
+### 升级
 
 ```bash
-npm install -g kimi-code-memory-mcp-server
+npm install -g kimi-code-memory-mcp-server@latest
+kimi-memory-setup --force
 ```
 
-### 从源码安装
+升级后请重启 `kimi web` 或 CLI，让正在运行的 MCP 实例加载新版本。
+
+<details>
+<summary>自动配置详情与源码安装</summary>
+
+`kimi-memory-setup` 会检测 `~/.kimi-code`，注入 `AGENTS.md` 记忆协议、安装 `memory-manage` Skill，并在 `mcp.json` 中注册 `kimi-memory` 服务器。
+
+```bash
+# 预览变更，不写入文件
+kimi-memory-setup --dry-run
+
+# 移除注入的配置
+kimi-memory-setup --undo
+
+# 未全局安装时，也可通过 npx 运行
+npx -p kimi-code-memory-mcp-server kimi-memory-setup
+```
+
+从源码构建：
 
 ```bash
 git clone https://github.com/Zehee/kimi-code-memory-mcp-server.git
@@ -107,70 +112,12 @@ npm install
 npm run build
 ```
 
-## 快速配置（推荐）
+</details>
 
-运行 setup 命令自动配置 Kimi Code CLI。`kimi-memory-setup` 是 `kimi-code-memory-mcp-server` 包提供的 bin（registry 上没有同名独立包），二选一：
+<details>
+<summary>手动配置 Kimi Code CLI</summary>
 
-```bash
-# 已按上文全局安装：bin 已在 PATH 上，直接运行
-kimi-memory-setup
-
-# 未全局安装：让 npx 从包中解析该 bin
-npx -p kimi-code-memory-mcp-server kimi-memory-setup
-```
-
-它会完成：
-
-1. 检测 `~/.kimi-code` 目录。
-2. 在 `~/.kimi-code/AGENTS.md` 顶部注入记忆协议规则。
-3. 将 `memory-manage` Skill 安装到 `~/.kimi-code/skills/memory-manage`。
-4. 在 `~/.kimi-code/mcp.json` 中添加 `kimi-memory` MCP 服务器配置。
-
-预览变更而不写入文件：
-
-```bash
-kimi-memory-setup --dry-run
-```
-
-后续如需移除注入的配置：
-
-```bash
-kimi-memory-setup --undo
-```
-
-## 升级
-
-```bash
-# 1. 全局更新到最新版本
-npm install -g kimi-code-memory-mcp-server@latest
-
-# 2. 重新生成注入的配置（AGENTS.md 协议块、memory-manage Skill、mcp.json 条目）
-kimi-memory-setup --force
-```
-
-升级后请重启 `kimi web`：正在运行的 MCP 实例内存中仍是旧代码，重启后才会加载新版本。
-
-## 配置 Kimi Code CLI（手动）
-
-如果你希望手动配置，编辑 `~/.kimi-code/mcp.json` 并添加服务器。
-
-如果你用 `npm install -g` 安装，使用全局 `node_modules` 中 `dist/server.js` 的绝对路径：
-
-```json
-{
-  "mcpServers": {
-    "kimi-memory": {
-      "command": "node",
-      "args": ["/absolute/path/to/global/node_modules/kimi-code-memory-mcp-server/dist/server.js"],
-      "enabled": true
-    }
-  }
-}
-```
-
-> **Windows 原生二进制注意**：`kimi web`（原生 `kimi.exe`）的进程环境可能不包含 npm 的 bin 目录，裸 `node` / `npx` 会报 `spawn ... ENOENT`。此时把 `command` 换成 `node.exe` 的绝对路径（如 `D:\\Programs\\nodejs\\node.exe`）。`kimi-memory-setup` 生成的配置会自动使用绝对路径，推荐优先使用 setup。
-
-或者直接通过 `npx` 运行（无需安装；仅限 npx 在客户端进程 PATH 中可用的环境，且每次启动有 registry 解析开销）：
+编辑 `~/.kimi-code/mcp.json`。通过 `npx` 运行时：
 
 ```json
 {
@@ -184,7 +131,7 @@ kimi-memory-setup --force
 }
 ```
 
-如果你从源码构建，指向本地 `dist/server.js`：
+全局安装或从源码构建时，将 `command` 设为 `node`，并将 `args` 设为对应 `dist/server.js` 的绝对路径：
 
 ```json
 {
@@ -198,210 +145,107 @@ kimi-memory-setup --force
 }
 ```
 
-服务器名称 **`kimi-memory`** 很重要，因为本仓库自带的 `AGENTS.md` 规则以 `mcp__kimi-memory__*` 形式调用工具（例如 `mcp__kimi-memory__bootstrap_workspace`）。
+> **Windows 原生二进制注意**：如果裸 `node` / `npx` 报 `spawn ... ENOENT`，请将 `command` 换成可执行文件的绝对路径。`kimi-memory-setup` 会自动生成绝对路径，推荐优先使用。
 
-重启 Kimi Code CLI 以加载该服务器。
+服务器名称必须保留为 **`kimi-memory`**，因为注入的规则通过 `mcp__kimi-memory__*` 调用工具。修改后重启 Kimi Code CLI。
 
-## 故障排查
+</details>
 
-- **`spawn npx ENOENT` / `spawn node ENOENT`**：客户端进程找不到命令（常见于原生 Windows 二进制）。把 `mcp.json` 里的 `command`/`args` 改为 Node 与 `dist/server.js` 的绝对路径，或运行 `kimi-memory-setup --force` 重新生成。
-- **改了 `mcp.json` 但 `/new` 后仍不生效**：MCP server 在会话启动时加载，且连接失败会被当前 `kimi web` 进程缓存，`/new` 不会重试——需要重启 `kimi web`（或 CLI）。
-- **切换工作区后 MCP 不可用**：0.4.1 之前版本存在 vis dashboard 端口竞态，会拖垮 MCP 进程；升级到 0.4.1+ 并重启 `kimi web`。
-- 客户端连接日志见 `~/.kimi-code/logs/kimi-code.log`。
+<details>
+<summary>故障排查</summary>
 
-## 可选：安装用户级 AGENTS.md 启动钩子
+- **`spawn npx ENOENT` / `spawn node ENOENT`**：改用 Node 与 `dist/server.js` 的绝对路径，或运行 `kimi-memory-setup --force`。
+- **改了 `mcp.json` 但 `/new` 后仍不生效**：连接失败会被当前进程缓存，需要重启 `kimi web` 或 CLI。
+- **切换工作区后 MCP 不可用**：升级到 0.4.1+ 并重启，旧版本存在仪表盘端口竞态。
+- **启动时弹出多个仪表盘窗口**：升级到 0.5.1+ 并重启；同一工作区现在只保留一个仪表盘实例，多个 MCP 进程自动复用，只打开一个浏览器窗口。
+- **查看连接日志**：`~/.kimi-code/logs/kimi-code.log`。
 
-如需每次会话启动时自动恢复记忆并应用行为规范，将本仓库自带的 `AGENTS.md` 复制到 Kimi Code 用户目录：
-
-```bash
-cp AGENTS.md ~/.kimi-code/AGENTS.md
-```
-
-这会安装一个启动钩子，让 Kimi Code CLI 在每次会话开始时调用 `bootstrap_workspace`，并遵循记忆分类和决策守卫规则。由于 `AGENTS.md` 会注入到**每个**会话中，它是放置记忆相关行为协议的正确位置。
-
-> **注意：** `AGENTS.md` 规则会注入到每个会话中，请只保留与记忆相关的约定，不要包含属于其他 MCP server 的工具偏好。
->
-> **前提条件：** 必须在 `~/.kimi-code/mcp.json` 中将 MCP 服务器注册为 `kimi-memory`，否则 `AGENTS.md` 中的 `mcp__kimi-memory__*` 调用会失败。
-
-## 可选：安装记忆 Skill
-
-本仓库还包含一个轻量 Skill（`skills/memory-manage/SKILL.md`），用于在用户表达记忆相关意图时提醒 Kimi Code CLI 调用记忆工具。
-
-```bash
-cp -r skills/memory-manage ~/.kimi-code/skills/memory-manage
-```
-
-该 Skill 本身**不强制**行为，它只是一个调度器。真正的协议（何时 remember、决策守卫等）应配置在 `AGENTS.md` 中。
-
-## 快速开始
-
-服务器加载后，Agent 可以自然地调用记忆工具（工具名带有你在 MCP 配置中注册的 server 名称前缀，例如 `mcp__kimi-memory__*`）：
-
-```text
-用户：我们用 SQLite 作为缓存层。
-Agent：[调用 mcp__kimi-memory__remember] key=use-sqlite-cache, folder=memory/decisions
-
-用户：为什么选 SQLite？
-Agent：[调用 mcp__kimi-memory__search] query=SQLite cache decision
-       [调用 mcp__kimi-memory__recall] key=use-sqlite-cache, folder=memory/decisions
-       → "我们选择 SQLite 而不是 Redis，因为……"
-
-用户：缓存设计是怎么演化的？
-Agent：[调用 mcp__kimi-memory__tag_theme] theme=cache-design
-       [调用 mcp__kimi-memory__trace_theme] theme=cache-design
-       → 展示跨会话的相关轮次和决策
-```
-
-## 存储布局
-
-服务器将数据存储在 `~/.kimi-code-memory/<workspace-id>/` 下：
-
-```text
-~/.kimi-code-memory/workspace-a1b2c3d4/
-├── index.json              # v3-kv 元数据缓存（可重建）
-├── memory/
-│   ├── decisions/          # 架构与产品决策
-│   ├── knowledge/          # 项目相关知识
-│   ├── rules/              # 约定与红线
-│   └── reference/          # 外部参考
-├── essence/
-│   └── essence.md          # 工作区精要（≤15 KB）
-├── notes/                  # 临时速记
-├── themes/
-│   └── my-theme.json       # theme -> turn/memory 引用
-└── refined/
-    └── refined.sqlite      # 轮次级摘要
-```
-
-可通过 `MEMORY_STORE_ROOT` 环境变量覆盖存储根目录。
-
-### 环境变量
-
-| 变量 | 用途 |
-|------|------|
-| `MEMORY_STORE_ROOT` | 覆盖默认存储根目录 `~/.kimi-code-memory`。 |
-| `MEMORY_SESSIONS_ROOT` | 覆盖默认的 `~/.kimi-code/sessions` 路径，用于发现 `wire.jsonl` 文件。 |
-| `KIMI_CODE_HOME` | `MEMORY_SESSIONS_ROOT` 的替代方案；会话从 `<KIMI_CODE_HOME>/sessions` 读取。 |
-| `KIMI_MEMORY_AUTO_VIS` | 是否在 MCP 服务器启动时自动启动仪表盘。默认 `1`/`true`；设为 `0`/`false` 禁用。 |
-| `KIMI_MEMORY_VIS_PORT` | 仪表盘起始端口，默认 `58628`；若被占用会自动向后尝试 10 个端口。 |
-| `KIMI_MEMORY_VIS_HOST` | 仪表盘绑定地址，默认 `127.0.0.1`。 |
-
-## 工具列表
-
-| 工具 | 用途 |
-|------|------|
-| `remember` | 写入一条 Markdown 记忆 |
-| `recall` | 按 key 读取记忆 |
-| `search` | 在记忆中关键词搜索 |
-| `list` | 列出记忆，支持按 folder / tag 过滤和 limit 限制 |
-| `list_tags` | 列出所有标签 |
-| `delete` | 删除记忆 |
-| `move` | 移动或重命名记忆 |
-| `organize_memories` | 将 `memory/` 提炼为 `essence/essence.md` |
-| `sync_workspace_index` | 从磁盘重建 `index.json` |
-| `bootstrap_workspace` | 加载上下文、精要和记忆树 |
-| `load_more_context` | 加载更早的对话轮次 |
-| `search_context` | 跨所有会话 wire 搜索 |
-| `load_turn_context` | 加载指定轮次详情 |
-| `tag_theme` | 将轮次或记忆关联到主题 |
-| `trace_theme` | 追溯主题演化 |
-| `list_themes` | 列出主题 |
-| `delete_theme` | 删除主题关联文件 |
-| `list_search_views` | 列出保存的搜索视图 |
-| `delete_search_view` | 删除搜索视图（可选级联删除关联精炼轮次） |
-| `open_memory_dashboard` | 在浏览器中打开记忆仪表盘 |
-| `refine_session_turns` | 生成精炼轮次摘要 |
-
-## Prompts
-
-本服务器同时提供可复用的 MCP Prompt，供客户端在调用工具前拉取：
-
-| Prompt | 用途 |
-|--------|------|
-| `memory-decision-check` | 修改文件前，先检查与其相关的历史决策 |
-| `memory-theme-trace` | 追溯某个主题在多次会话中的演化 |
-| `memory-session-summary` | 总结当前会话，并建议值得挂载的主题 |
-
-## Resources
-
-本服务器暴露以下 MCP Resource URI，客户端可按需读取：
-
-| URI 模式 | 说明 |
-|----------|------|
-| `memory://<folder>/<key>` | 读取 `memory/` 下的某条 Markdown 记忆 |
-| `theme://<theme>` | 读取某个主题的关联摘要（Markdown 格式） |
-| `essence://essence` | 读取工作区精要 `essence/essence.md` |
+</details>
 
 ## 可视化仪表盘
 
-提供独立的 Web 仪表盘，用于查看工作区记忆、主题时间线和近期决策。
+仪表盘默认随 MCP 服务器启动，地址为 `http://127.0.0.1:58628`；也可独立运行：
 
-### 启动方式
+```bash
+kimi-memory-vis
+```
 
-1. **随 MCP 服务器自动启动（默认）**
+支持工作区精要编辑、记忆浏览、主题时间线、搜索视图管理和中英文切换。使用 `--port`、`--no-open` 或 `--workspace` 可自定义启动方式，也可让 Agent 调用 `open_memory_dashboard`。
 
-   `kimi-code-memory-mcp-server` 启动后会自动在后台启动仪表盘，并尝试打开浏览器。默认地址：
+仪表盘按工作区单例运行：Kimi Code 为同一工作区启动多个 MCP 进程时，只有第一个进程绑定端口并打开浏览器窗口，其余进程自动复用已有实例；不同工作区各自拥有独立仪表盘。设 `KIMI_MEMORY_AUTO_VIS=0` 可完全关闭自动启动。
 
-   ```text
-   http://127.0.0.1:58628
-   ```
+## 参考信息
 
-   若端口被占用，会自动尝试 `58629`–`58637`。
+<details>
+<summary>存储布局与环境变量</summary>
 
-   如需禁用自动启动：
+数据默认存储在 `~/.kimi-code-memory/<workspace-id>/`：
 
-   ```bash
-   export KIMI_MEMORY_AUTO_VIS=0
-   ```
-
-2. **手动独立启动**
-
-   安装包后：
-
-   ```bash
-   kimi-memory-vis
-   ```
-
-   从源码运行：
-
-   ```bash
-   npx tsx src/vis-cli.ts
-   ```
-
-   常用选项：
-
-   ```bash
-   kimi-memory-vis --port 8080        # 指定端口
-   kimi-memory-vis --no-open          # 不自动打开浏览器
-   kimi-memory-vis --workspace /path  # 查看其他工作区
-   ```
-
-3. **在对话中让 Agent 打开**
-
-   让 Agent 调用记忆工具：
-
-   ```text
-   mcp__kimi-memory__open_memory_dashboard
-   ```
-
-### 环境变量
+```text
+workspace-a1b2c3d4/
+├── index.json              # 可重建的元数据缓存
+├── memory/                 # decisions / knowledge / rules / reference
+├── essence/essence.md      # 工作区精要（建议 ≤15 KB）
+├── notes/                  # 临时速记
+├── themes/                 # 主题到轮次/记忆的引用
+├── searches/               # 保存的搜索视图
+└── refined/refined.sqlite  # 轮次级摘要
+```
 
 | 变量 | 用途 |
 |------|------|
-| `KIMI_MEMORY_AUTO_VIS` | 是否在 MCP 服务器启动时自动启动仪表盘。默认 `1`/`true`；设为 `0`/`false` 禁用。 |
-| `KIMI_MEMORY_VIS_PORT` | 仪表盘起始端口，默认 `58628`。 |
+| `MEMORY_STORE_ROOT` | 覆盖默认存储根目录。 |
+| `MEMORY_SESSIONS_ROOT` | 覆盖默认的 `~/.kimi-code/sessions` 路径。 |
+| `KIMI_CODE_HOME` | 从 `<KIMI_CODE_HOME>/sessions` 读取会话。 |
+| `KIMI_MEMORY_AUTO_VIS` | 是否自动启动仪表盘，默认开启。 |
+| `KIMI_MEMORY_VIS_PORT` | 仪表盘起始端口，默认 `58628`，被占用时自动向后尝试。 |
 | `KIMI_MEMORY_VIS_HOST` | 仪表盘绑定地址，默认 `127.0.0.1`。 |
 
-### 仪表盘功能
+</details>
 
-- 工作区概览与 `essence.md` 浏览/编辑（默认只读，点击“编辑”后修改）
-- Markdown 文档轻量级渲染，超长内容自带滚动条
-- 主题时间线浏览与主题删除
-- 搜索视图列表与删除（支持仅删视图或级联清理精炼轮次）
-- 近期决策列表
-- 显式记忆目录浏览
-- 控制面板标题与面包屑根目录显示为用户工作区文件夹名
-- 中英文界面切换（顶栏一键切换，默认跟随浏览器语言）
+<details>
+<summary>工具、Prompts 与 Resources</summary>
+
+| 工具 | 用途 |
+|------|------|
+| `remember` / `recall` / `delete` / `move` | 写入、读取、删除、移动记忆 |
+| `search` / `list` / `list_tags` | 搜索与列出记忆或标签 |
+| `organize_memories` / `sync_workspace_index` | 提炼工作区精要、重建索引 |
+| `bootstrap_workspace` / `load_more_context` | 恢复工作区与更早的上下文 |
+| `get_current_workspace` | 查看当前工作区 ID、cwd 与存储路径 |
+| `search_context` / `load_turn_context` | 跨会话搜索、加载指定轮次 |
+| `tag_theme` / `trace_theme` / `list_themes` / `delete_theme` | 管理并追溯主题 |
+| `list_search_views` / `delete_search_view` | 管理保存的搜索视图 |
+| `refine_session_turns` | 生成轮次级摘要 |
+| `open_memory_dashboard` | 打开可视化仪表盘 |
+
+| Prompt | 用途 |
+|--------|------|
+| `memory-decision-check` | 修改文件前检查相关历史决策 |
+| `memory-theme-trace` | 追溯主题的跨会话演化 |
+| `memory-session-summary` | 总结当前会话并建议相关主题 |
+
+| Resource URI | 用途 |
+|--------------|------|
+| `memory://<folder>/<key>` | 读取一条 Markdown 记忆 |
+| `theme://<theme>` | 读取主题关联摘要 |
+| `essence://essence` | 读取工作区精要 |
+
+</details>
+
+<details>
+<summary>手动安装 AGENTS.md 启动钩子与记忆 Skill</summary>
+
+自动 setup 已包含这两步；仅手动安装时需要：
+
+```bash
+cp AGENTS.md ~/.kimi-code/AGENTS.md
+cp -r skills/memory-manage ~/.kimi-code/skills/memory-manage
+```
+
+`AGENTS.md` 负责会话启动时的记忆恢复与行为协议，Skill 负责识别用户的记忆相关意图。请确保 MCP 服务器注册名为 `kimi-memory`，并保持 `AGENTS.md` 只包含记忆相关约定。
+
+</details>
 
 ## 开发
 
@@ -414,7 +258,7 @@ npm test
 npm run lint
 ```
 
-贡献指南见 [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.zh-CN.md)。
+贡献指南见 [`docs/CONTRIBUTING.zh-CN.md`](./docs/CONTRIBUTING.zh-CN.md)。
 
 ## 项目结构
 
@@ -422,23 +266,18 @@ npm run lint
 src/
 ├── server.ts              # MCP 服务器入口
 ├── config.ts              # 默认值与路径
+├── setup-cli.ts           # kimi-memory-setup 自动配置 CLI
+├── vis-cli.ts             # kimi-memory-vis 仪表盘 CLI
 ├── theme-manager.ts       # 主题存储
-├── refined-manager.ts     # 精炼轮次存储
-├── dao/
-│   ├── index.ts           # index.json DAO（v3-kv）
-│   └── memory-store.ts    # Markdown 文件操作
-├── context/
-│   └── wire-context.ts    # wire.jsonl 解析
-├── tools/
-│   ├── index.ts           # 工具 schema 与分发
-│   ├── memory-tools.ts    # 记忆增删改查
-│   ├── context-tools.ts   # 上下文恢复
-│   ├── theme-tools.ts     # 主题追溯
-│   └── system-tools.ts    # 整理/同步/引导
-└── utils/
-    ├── frontmatter.ts
-    ├── paths.ts
-    └── validation.ts
+├── refined-manager.ts     # 精炼轮次存储（node:sqlite）
+├── dao/                   # index.json DAO（v3-kv）与 Markdown 文件操作
+├── context/               # wire.jsonl 解析与上下文恢复
+├── refine/                # 轮次提炼：提取器、存储、适配器
+├── tools/                 # 工具 schema 与分发（记忆/上下文/主题/系统）
+├── prompts/               # MCP prompts
+├── resources/             # MCP resources
+├── vis/                   # 仪表盘：Hono API、自动启动、静态前端
+└── utils/                 # frontmatter、搜索、路径、校验等
 ```
 
 ## 路线图
