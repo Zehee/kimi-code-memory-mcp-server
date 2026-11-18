@@ -113,12 +113,16 @@ async function main() {
 
   const visResult = await maybeStartVisServer(ctx);
   if (visResult.started && visResult.url) {
-    process.stderr.write(`[kimi-memory] vis dashboard ready at ${visResult.url}\n`);
-    try {
-      const { default: openBrowser } = await import('open');
-      await openBrowser(visResult.url);
-    } catch {
-      // Browser may not be available in headless/server environments; ignore.
+    if (visResult.reused) {
+      process.stderr.write(`[kimi-memory] vis dashboard already running at ${visResult.url}; reusing it\n`);
+    } else {
+      process.stderr.write(`[kimi-memory] vis dashboard ready at ${visResult.url}\n`);
+      try {
+        const { default: openBrowser } = await import('open');
+        await openBrowser(visResult.url);
+      } catch {
+        // Browser may not be available in headless/server environments; ignore.
+      }
     }
   } else if (visResult.error) {
     process.stderr.write(`[kimi-memory] vis dashboard failed to start: ${visResult.error}\n`);

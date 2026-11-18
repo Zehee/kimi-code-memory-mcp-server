@@ -13,7 +13,8 @@ import { IndexDao } from '../src/dao/index.js';
 import { MemoryStore } from '../src/dao/memory-store.js';
 import { ThemeManager } from '../src/theme-manager.js';
 import { RefinedManager } from '../src/refined-manager.js';
-import { createApp } from '../src/vis/server.js';
+import { createApp, startVisServer } from '../src/vis/server.js';
+import { maybeStartVisServer, stopVisServer, getVisUrl } from '../src/vis/auto-start.js';
 import { serve } from '@hono/node-server';
 import type { ServerType } from '@hono/node-server';
 import type { Ctx } from '../src/types.js';
@@ -249,6 +250,124 @@ async function testMemoryCrudEndpoints() {
   }
 }
 
+function startVisServerOnEphemeralPort(ctx: Ctx): Promise<ServerType> {
+  return new Promise((resolve, reject) => {
+    const server = startVisServer({
+      ctx,
+      port: 0,
+      hostname: '127.0.0.1',
+      onReady: () => resolve(server),
+    });
+    server.once('error', reject);
+  });
+}
+
+function closeServer(server: ServerType): Promise<void> {
+  return new Promise((resolve) => {
+    server.close(() => resolve());
+  });
+}
+
+async function withAutoVisEnv(port: number, fn: () => Promise<void>): Promise<void> {
+  const prevFlag = process.env.KIMI_MEMORY_AUTO_VIS;
+  const prevPort = process.env.KIMI_MEMORY_VIS_PORT;
+  process.env.KIMI_MEMORY_AUTO_VIS = '1';
+  process.env.KIMI_MEMORY_VIS_PORT = String(port);
+  try {
+    await fn();
+  } finally {
+    stopVisServer();
+    if (prevFlag === undefined) delete process.env.KIMI_MEMORY_AUTO_VIS;
+    else process.env.KIMI_MEMORY_AUTO_VIS = prevFlag;
+    if (prevPort === undefined) delete process.env.KIMI_MEMORY_VIS_PORT;
+    else process.env.KIMI_MEMORY_VIS_PORT = prevPort;
+  }
+}
+
+async function testAutoStartReusesExistingDashboard() {
+  const { ctx, cleanup } = createTempCtx();
+  const server = await startVisServerOnEphemeralPort(ctx);
+  const port = (server.address() as AddressInfo).port;
+  const url = `http://127.0.0.1:${port}`;
+  try {
+    await withAutoVisEnv(port, async () => {
+      const result = await maybeStartVisServer(ctx);
+      assert.strictEqual(result.started, true);
+      assert.strictEqual(result.reused, true);
+      assert.strictEqual(result.url, url);
+      assert.strictEqual(getVisUrl(), url);
+
+      // A reused dashboard belongs to another process: stopping our own
+      // auto-start state must not take it down.
+      stopVisServer();
+      const res = await fetch(`${url}/api/workspace`);
+      assert(res.ok, 'reused dashboard was killed by stopVisServer');
+      const data = (await res.json()) as { id: string };
+      assert.strictEqual(data.id, ctx.workspaceId);
+    });
+  } finally {
+    await closeServer(server);
+    ctx.refinedManager.close();
+    cleanup();
+  }
+}
+
+async function testAutoStartDifferentWorkspaceBindsNewPort() {
+  const a = createTempCtx();
+  const b = createTempCtx();
+  b.ctx.workspaceId = `${a.ctx.workspaceId}-other`;
+  const serverA = await startVisServerOnEphemeralPort(a.ctx);
+  const portA = (serverA.address() as AddressInfo).port;
+  const urlA = `http://127.0.0.1:${portA}`;
+  try {
+    await withAutoVisEnv(portA, async () => {
+      const result = await maybeStartVisServer(b.ctx);
+      assert.strictEqual(result.started, true);
+      assert(!result.reused, 'a different workspace must not reuse the dashboard');
+      assert(result.url && result.url !== urlA);
+
+      const res = await fetch(`${result.url}/api/workspace`);
+      const data = (await res.json()) as { id: string };
+      assert.strictEqual(data.id, b.ctx.workspaceId);
+
+      stopVisServer();
+      const resA = await fetch(`${urlA}/api/workspace`);
+      assert(resA.ok, 'foreign workspace dashboard was killed');
+    });
+  } finally {
+    await closeServer(serverA);
+    a.ctx.refinedManager.close();
+    b.ctx.refinedManager.close();
+    a.cleanup();
+    b.cleanup();
+  }
+}
+
+async function testAutoStartConcurrentSameWorkspace() {
+  const { ctx, cleanup } = createTempCtx();
+  const probe = await startVisServerOnEphemeralPort(ctx);
+  const basePort = (probe.address() as AddressInfo).port;
+  await closeServer(probe);
+  try {
+    await withAutoVisEnv(basePort, async () => {
+      const [r1, r2] = await Promise.all([maybeStartVisServer(ctx), maybeStartVisServer(ctx)]);
+      assert.strictEqual(r1.started, true);
+      assert.strictEqual(r2.started, true);
+      assert.strictEqual(r1.url, r2.url, 'concurrent starts must converge on one dashboard');
+      assert(r1.reused || r2.reused, 'one of the concurrent starts must reuse');
+      assert(!(r1.reused && r2.reused), 'one of the concurrent starts must own the server');
+
+      const res = await fetch(`${r1.url}/api/workspace`);
+      assert(res.ok);
+      stopVisServer();
+      assert.strictEqual(getVisUrl(), null);
+    });
+  } finally {
+    ctx.refinedManager.close();
+    cleanup();
+  }
+}
+
 const tests = [
   testWorkspaceEndpoint,
   testThemesEndpoint,
@@ -256,6 +375,9 @@ const tests = [
   testStaticFallback,
   testFolderEndpoints,
   testMemoryCrudEndpoints,
+  testAutoStartReusesExistingDashboard,
+  testAutoStartDifferentWorkspaceBindsNewPort,
+  testAutoStartConcurrentSameWorkspace,
 ];
 
 async function main() {
