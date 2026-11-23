@@ -150,6 +150,7 @@ Implements the remediation plan from `docs/architecture-audit-and-remediation.zh
 - **stale-row lag accounting**: count missing rows, changed source hashes and outdated extractor versions as lag, and use the zero-lag checkpoint shortcut only when all rows are fresh
 - **alias-aware export overlap**: resolve source and destination real paths through existing ancestors before copying, preventing a path alias from hiding source/destination overlap and recursing into the export itself
 - **manual refinement provenance**: `refine_session_turns` now records the current wire size, nanosecond mtime and per-turn source hash, so a manual refresh no longer forces an unnecessary background rewrite
+- **clean-checkout release gates**: build before running integration tests so the setup test's generated `dist/server.js` entry exists in a fresh checkout without relying on stale build output
 
 ## [0.5.1] - 2026-11-18
 

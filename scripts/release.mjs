@@ -292,10 +292,12 @@ function runVerificationGates({ install = true } = {}) {
   npmRun(['run', 'lint']);
   console.log('> npm run test:unit');
   npmRun(['run', 'test:unit']);
-  console.log('> npm test');
-  npmRun(['test']);
+  // Integration tests include setup, whose generated MCP entry must point at
+  // dist/server.js. A clean checkout has no dist yet, so build before npm test.
   console.log('> npm run build');
   npmRun(['run', 'build']);
+  console.log('> npm test');
+  npmRun(['test']);
   // Security-focused dashboard tests and a real stdio MCP verification of
   // the BUILT artifacts (review round 5, item 5: these were missing from
   // the release gate).
