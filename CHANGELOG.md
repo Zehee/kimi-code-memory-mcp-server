@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- prepare v0.6.0 ([749a83e](https://github.com/Zehee/kimi-code-memory-mcp-server/commit/749a83e4de7bd65ed5a243e3a0ee35d7dc54c56e))
+
 ## [0.6.0] - 2026-11-24
 
 Implements the remediation plan from `docs/architecture-audit-and-remediation.zh-CN.md` (phases 0–2).
