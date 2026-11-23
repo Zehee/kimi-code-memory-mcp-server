@@ -5,6 +5,7 @@ import headingsTests from './utils/headings.test.js';
 import extractorTests from './refine/extractor.test.js';
 import definitionsTests from './tools/definitions.test.js';
 import catalogTests from './dao/catalog.test.js';
+import refinedStoreTests from './refine/store.test.js';
 
 const suites: Array<{ name: string; run: () => Promise<void> }> = [
   { name: 'utils/action-entities', run: actionEntitiesTests },
@@ -13,6 +14,7 @@ const suites: Array<{ name: string; run: () => Promise<void> }> = [
   { name: 'refine/extractor', run: extractorTests },
   { name: 'tools/definitions', run: definitionsTests },
   { name: 'dao/catalog', run: catalogTests },
+  { name: 'refine/store', run: refinedStoreTests },
 ];
 
 async function main() {
@@ -35,9 +37,10 @@ async function main() {
     }
   }
   console.log(`\n${passed} suite(s) passed, ${failed} suite(s) failed`);
-  if (failed > 0) {
-    process.exitCode = 1;
-  }
+  // Some suite combinations leave unref-able handles behind (e.g. a dashboard
+  // server started through a dispatched tool). The results are complete at
+  // this point: exit explicitly instead of waiting for the loop to drain.
+  process.exit(failed > 0 ? 1 : 0);
 }
 
-main();
+void main();

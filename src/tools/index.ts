@@ -5,6 +5,7 @@
 import type { Ctx } from '../types.js';
 import type { ToolDefinition, ToolResult } from './types.js';
 import { toolResult } from '../utils/tools.js';
+import { metrics } from '../utils/metrics.js';
 import { createMemoryTools } from './memory-tools.js';
 import { createContextTools } from './context-tools.js';
 import { createThemeTools } from './theme-tools.js';
@@ -26,16 +27,25 @@ export function createTools(ctx: Ctx) {
 
   const handlers = Object.fromEntries(
     tools.map((tool) => [tool.name, tool.handler]),
-  ) as Record<string, (args: unknown) => ToolResult | Promise<ToolResult>>;
+  ) as Record<string, (args: unknown, signal?: AbortSignal) => ToolResult | Promise<ToolResult>>;
 
-  async function dispatch(name: string, args: Record<string, unknown> = {}): Promise<ToolResult> {
+  async function dispatch(
+    name: string,
+    args: Record<string, unknown> = {},
+    signal?: AbortSignal,
+  ): Promise<ToolResult> {
     const handler = handlers[name];
     if (!handler) {
       return toolResult({ error: `Unknown tool: ${name}` }, true);
     }
+    const started = Date.now();
     try {
-      return await handler(args);
+      const result = await handler(args, signal);
+      metrics.observe('mcp_tool_duration_ms', Date.now() - started);
+      return result;
     } catch (err) {
+      metrics.increment('mcp_tool_errors');
+      metrics.observe('mcp_tool_duration_ms', Date.now() - started);
       return toolResult(
         {
           success: false,

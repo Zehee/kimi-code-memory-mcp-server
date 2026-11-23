@@ -12,7 +12,12 @@ export interface ToolDefinition {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
-  handler: (args: unknown) => ToolResult | Promise<ToolResult>;
+  /**
+   * `signal` is the MCP request's abort signal (undefined when the host does
+   * not provide one). Long-running handlers should check it at loop
+   * boundaries and return a partial result instead of ignoring cancellation.
+   */
+  handler: (args: unknown, signal?: AbortSignal) => ToolResult | Promise<ToolResult>;
 }
 
 export class ToolError extends Error {
@@ -23,7 +28,7 @@ export class ToolError extends Error {
 }
 
 export function adaptHandler<TArgs>(
-  handler: (args: TArgs) => ToolResult | Promise<ToolResult>,
-): (args: unknown) => ToolResult | Promise<ToolResult> {
-  return handler as unknown as (args: unknown) => ToolResult | Promise<ToolResult>;
+  handler: (args: TArgs, signal?: AbortSignal) => ToolResult | Promise<ToolResult>,
+): (args: unknown, signal?: AbortSignal) => ToolResult | Promise<ToolResult> {
+  return handler as unknown as (args: unknown, signal?: AbortSignal) => ToolResult | Promise<ToolResult>;
 }

@@ -6,7 +6,7 @@ This directory contains a sample workspace that demonstrates the storage layout 
 
 ```text
 sample-workspace/
-├── index.json              # v3-kv index cache
+├── index.json              # 3-kv index cache
 ├── essence/
 │   └── essence.md          # workspace digest
 ├── memory/

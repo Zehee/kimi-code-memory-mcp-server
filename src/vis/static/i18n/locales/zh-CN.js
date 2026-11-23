@@ -36,6 +36,7 @@ export const zhCN = {
   'essence.editorPlaceholder': '工作区精要为空。在这里写一份简短的工作区约定…',
   'essence.empty': '还没有精要。点击“编辑”来撰写一份。',
   'essence.saved': '精要已保存。',
+  'essence.conflict': '保存冲突：精要已在其他位置更新。请重新加载最新版本后再保存。',
 
   // ---- stats ----
   'stats.loading': '统计加载中…',
@@ -59,6 +60,7 @@ export const zhCN = {
   'themes.col.memories': '记忆',
   'themes.col.actions': '操作',
   'themes.empty': '还没有主题。',
+  'themes.corrupt': '主题文件损坏',
 
   // ---- theme detail ----
   'theme.detailFallback': '主题',
@@ -72,9 +74,9 @@ export const zhCN = {
   // ---- confirm dialogs ----
   'confirm.deleteTheme': '确定删除主题“{name}”吗？',
   'confirm.deleteSearchView': '确定删除搜索视图“{key}”吗？',
-  'confirm.deleteRefinedTurns': '是否同时删除该视图引用的精炼轮次？\n\n点击“取消”则保留精炼轮次。',
-  'confirm.deleteFolder': '确定删除文件夹“{path}”及其全部内容吗？此操作无法撤销。',
-  'confirm.deleteMemoryFile': '确定删除“{path}”吗？此操作无法撤销。',
+  'confirm.deleteRefinedTurns': '是否同时清理仅由该视图引用的精炼缓存？\n\n后台索引可能从 wire 重新生成。点击“取消”则保留当前精炼行。',
+  'confirm.deleteFolder': '确定删除文件夹“{path}”吗？其中的记忆会移入回收站，可通过 restore_memory 恢复；非记忆文件会保留在原处。',
+  'confirm.deleteMemoryFile': '确定删除“{path}”吗？记忆会移入回收站，可通过 restore_memory 恢复。',
 
   // ---- searches list ----
   'searches.title': '已保存的搜索视图',

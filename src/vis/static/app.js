@@ -54,7 +54,6 @@ const navGroups = [
 ];
 
 const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
 function setHash(view, theme) {
   const hash = theme ? `#${view}/${encodeURIComponent(theme)}` : `#${view}`;
@@ -390,16 +389,26 @@ async function saveEssence() {
   const content = $('#essenceEditor').value;
   const status = $('#essenceStatus');
   try {
-    await api('/api/essence', {
+    const result = await api('/api/essence', {
       method: 'POST',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({
+        content,
+        expectedRevision: state.data.workspace?.essenceRevision ?? 0,
+      }),
     });
-    if (state.data.workspace) state.data.workspace.essence = content;
+    if (state.data.workspace) {
+      state.data.workspace.essence = content;
+      state.data.workspace.essenceRevision = result.revision;
+    }
     state.editingEssence = false;
     renderContent();
     setStatus(status, t('essence.saved'), 'success');
   } catch (err) {
-    setStatus(status, t('error.saveFailed', { err: err.message }), 'error');
+    setStatus(
+      status,
+      err.status === 409 ? t('essence.conflict') : t('error.saveFailed', { err: err.message }),
+      'error',
+    );
   }
 }
 
@@ -467,10 +476,11 @@ function renderThemes() {
   tbody.innerHTML = state.data.themes
     .map(
       (theme) => `
-      <tr class="search-row theme-row" data-theme="${escapeHtml(theme.name)}">
+      <tr class="search-row theme-row" data-theme="${escapeHtml(theme.name)}" data-corrupt="${theme.corrupt === true}">
         <td class="search-query">
           <span class="theme-icon">◆</span>
           ${escapeHtml(theme.displayName || theme.name)}
+          ${theme.corrupt ? `<span class="badge badge-warning" title="${escapeHtml(theme.error || '')}">${t('themes.corrupt')}</span>` : ''}
         </td>
         <td>${escapeHtml(theme.createdAt ? new Date(theme.createdAt).toLocaleString(getLocale()) : '-')}</td>
         <td>${escapeHtml(theme.updatedAt ? new Date(theme.updatedAt).toLocaleString(getLocale()) : '-')}</td>
@@ -1041,36 +1051,6 @@ function renderFolderTree() {
   });
 }
 
-function getFolderNode(root, folderPath) {
-  const parts = folderPath.split('/');
-  let current = root;
-  if (!current) return null;
-  for (const part of parts) {
-    current = (current.children || []).find((c) => c.name === part);
-    if (!current) return null;
-  }
-  return current;
-}
-
-function renderFileList(folderPath) {
-  const node = getFolderNode(state.data.memories, folderPath);
-  if (!node || !node.files.length) {
-    return `<div class="empty-state" style="min-height:120px">${t('memories.noFiles')}</div>`;
-  }
-  const filesHtml = node.files
-    .map(
-      (file) => `
-      <div class="file-row ${state.selectedMemoryFile?.folder === folderPath && state.selectedMemoryFile?.key === file.key ? 'active' : ''}"
-           data-folder="${escapeHtml(folderPath)}" data-key="${escapeHtml(file.key)}">
-        <span class="file-icon">📄</span>
-        <span class="file-name">${escapeHtml(file.title || file.key)}</span>
-      </div>
-    `,
-    )
-    .join('');
-  return `<div class="file-list">${filesHtml}</div>`;
-}
-
 function renderMemoryEditor() {
   const editor = $('#memoryEditor');
   if (!editor) return;
@@ -1255,11 +1235,29 @@ async function saveSelectedMemory() {
   const content = $('#memoryContent').value;
   const status = $('#composerStatus');
   try {
-    const result = await writeMemory(file.folder, file.key, { content, title, tags });
+    const result = await writeMemory(file.folder, file.key, {
+      content,
+      title,
+      tags,
+      // A new file expects "does not exist yet" (revision 0): two clients
+      // creating the same key concurrently produce a visible conflict for
+      // the second writer instead of a silent last-write-wins.
+      expectedRevision: file.isNew ? 0 : file.revision,
+      expectedContentHash: file.isNew ? undefined : file.contentHash,
+    });
     if (!result.ok) throw new Error(result.error || t('error.saveMemoryFallback'));
     setStatus(status, t('memories.saved'), 'success');
     state.editingMemory = false;
-    state.selectedMemoryFile = { ...file, title, tags, content, isNew: false };
+    state.selectedMemoryFile = {
+      ...file,
+      title,
+      tags,
+      content,
+      isNew: false,
+      id: result.id,
+      revision: result.revision,
+      contentHash: result.contentHash,
+    };
     await loadMemories();
   } catch (err) {
     setStatus(status, t('error.saveFailed', { err: err.message }), 'error');
@@ -1430,7 +1428,7 @@ function bindSettingsView() {
 
 // ---- Routing / init ----
 
-function loadDataForView(view, theme, key) {
+function loadDataForView(view, theme, _key) {
   switch (view) {
     case 'workspace':
     case 'settings':
@@ -1482,6 +1480,7 @@ function handleContentClick(e) {
 
   const themeRow = e.target.closest('#themesTable .theme-row');
   if (themeRow) {
+    if (themeRow.dataset.corrupt === 'true') return;
     const theme = themeRow.dataset.theme;
     setHash(`themes/${theme}`);
     applyHash();

@@ -64,6 +64,9 @@ export const DEFAULT_RECENT_CHANGE_LIMIT = 5;
 
 export const ESSENCE_SIZE_LIMIT = 15 * 1024; // 15 KB
 
+/** Hard cap for a single memory body written through any entry point. */
+export const MAX_MEMORY_BODY_BYTES = 1024 * 1024; // 1 MiB
+
 /**
  * search_context 用于把相邻 turn 聚成「簇」的默认时间间隔（秒）。
  *

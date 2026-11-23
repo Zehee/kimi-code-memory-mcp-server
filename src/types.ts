@@ -23,6 +23,13 @@ export interface RememberArgs {
   folder?: string;
   tags?: unknown[];
   themes?: unknown[];
+  expectedRevision?: number;
+  /** Provenance refs, e.g. `session-turn:<sessionId>:<turnId>` or `memory/...`. */
+  sourceRefs?: unknown[];
+  /** Memory ids/keys this entry supersedes. */
+  supersedes?: unknown[];
+  /** Visibility hint: public | workspace | private. */
+  sensitivity?: string;
 }
 
 export interface RecallArgs {
@@ -53,6 +60,11 @@ export interface MoveArgs {
   newKey?: string;
 }
 
+export interface RestoreArgs {
+  key: string;
+  folder?: string;
+}
+
 export interface LoadWorkspaceContextArgs {
   detailed_rounds?: number;
   summary_rounds?: number;
@@ -68,10 +80,12 @@ export interface SearchContextArgs {
   date_from?: string;
   date_to?: string;
   limit?: number;
+  cursor?: string;
   cluster_gap_seconds?: number;
   max_cluster_size?: number;
   detail?: 'compact' | 'normal' | 'full';
   max_output_chars?: number;
+  save_view?: boolean;
 }
 
 export interface ListSearchViewsArgs {
@@ -115,6 +129,7 @@ export interface RefineSessionTurnsArgs {
 export interface OrganizeArgs {
   content?: string;
   sources?: unknown[];
+  prepareToken?: string;
 }
 
 export interface SyncWorkspaceIndexArgs {

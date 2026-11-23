@@ -1,6 +1,6 @@
 {
   "name": "kimi-code-memory-mcp-server",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Local stdio MCP server providing cross-session memory for Kimi Code CLI",
   "main": "dist/server.js",
   "types": "dist/server.d.ts",
@@ -30,8 +30,9 @@
     "build": "npm run sync-version && tsc && npm run copy-vis-static",
     "dev": "tsx src/server.ts",
     "start": "node dist/server.js",
-    "test": "tsx tests/test.ts && tsx tests/vis.test.ts",
+    "test": "tsx tests/test.ts && tsx tests/search.test.ts && tsx tests/storage.test.ts && tsx tests/setup.test.ts && tsx tests/vis.test.ts",
     "test:unit": "tsx tests/unit/run-all.ts",
+    "bench": "tsx scripts/benchmark.ts",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix",
     "format": "prettier --write src tests",
@@ -70,7 +71,6 @@
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "prettier": "^3.2.5",
-    "ts-migrate": "^0.1.35",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3"
   },

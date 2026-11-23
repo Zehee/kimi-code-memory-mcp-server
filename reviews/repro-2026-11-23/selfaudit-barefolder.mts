@@ -1,0 +1,25 @@
+/** U-17 at repo-source level: a bare folder passed to remember lands outside the indexed/exported trees. */
+import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+const REPO = 'D:/workspace/kimi-code-memory-mcp-server/src';
+const imp = (rel: string) => import(pathToFileURL(path.join(REPO, rel)).href);
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'review-u17-'));
+process.env.MEMORY_STORE_ROOT = path.join(tmp, 'store');
+const { MemoryStore } = await imp('dao/memory-store.ts');
+const { IndexDao } = await imp('dao/index.ts');
+const { exportWorkspaceData } = await imp('maintenance.ts');
+const { sanitizeFolder } = await imp('utils/validation.ts');
+const root = path.join(tmp, 'store');
+const store = new MemoryStore(root);
+console.log(`sanitizeFolder('decisions') = ${JSON.stringify(sanitizeFolder('decisions'))}; sanitizeFolder('knowledge/sub') = ${JSON.stringify(sanitizeFolder('knowledge/sub'))}; sanitizeFolder('../x') = ${JSON.stringify(sanitizeFolder('../x'))}`);
+const ok = store.writeWithResult('decisions', 'bare-folder-entry', 'a decision worth keeping', ['decision']);
+const proper = store.writeWithResult('memory/decisions', 'proper-entry', 'another decision', ['decision']);
+console.log(`remember(folder="decisions") -> success, id=${ok.id.slice(0, 10)}…, file at <store>/${path.relative(root, ok.filePath).split(path.sep).join('/')}`);
+const dao = new IndexDao(root);
+const outcome = await dao.reconcileIndex();
+const keys = Object.keys(dao.getIndex().index);
+console.log(`reconcile: synced=${outcome.synced}; indexed entries containing the bare-folder entry: ${keys.some((k) => k.includes('bare-folder-entry'))}; containing the proper entry: ${keys.some((k) => k.includes('proper-entry'))}`);
+const exported = exportWorkspaceData(root, path.join(tmp, 'export'));
+console.log(`--export-data: bare-folder entry exported: ${fs.existsSync(path.join(tmp, 'export', 'memory', 'decisions', 'bare-folder-entry.md'))}; proper entry exported: ${fs.existsSync(path.join(tmp, 'export', 'memory', 'decisions', 'proper-entry.md'))}`);
+console.log(`legacy out-of-tree path was not created: ${!fs.existsSync(path.join(root, 'decisions', 'bare-folder-entry.md'))}`);
+fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });

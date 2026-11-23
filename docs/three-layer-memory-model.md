@@ -47,11 +47,11 @@ Directory: `memory/`
 
 Structured Markdown files, categorized by purpose:
 
-| Folder | Purpose | Tag |
-|---|---|---|
-| `memory/decisions/` | Architecture and product decisions | `decision` |
-| `memory/knowledge/` | Project-specific technical knowledge | `knowledge` |
-| `memory/rules/` | Conventions, guardrails, and red lines | `rule` |
+| Folder              | Purpose                                     | Tag         |
+| ------------------- | ------------------------------------------- | ----------- |
+| `memory/decisions/` | Architecture and product decisions          | `decision`  |
+| `memory/knowledge/` | Project-specific technical knowledge        | `knowledge` |
+| `memory/rules/`     | Conventions, guardrails, and red lines      | `rule`      |
 | `memory/reference/` | External links and documentation references | `reference` |
 
 Each file has YAML frontmatter:
@@ -64,7 +64,7 @@ tags: [knowledge, memory, architecture]
 ---
 ```
 
-A lightweight `index.json` v3-kv cache records file paths, titles, and tags. The cache is rebuildable from disk via `sync_workspace_index`; the Markdown files are the source of truth.
+A lightweight `index.json` 3-kv cache records file paths, titles, and tags. The cache is rebuildable from disk via `sync_workspace_index`; the Markdown files are the source of truth.
 
 ---
 
@@ -109,12 +109,10 @@ A theme file only holds pointers to turns and memories:
 {
   "theme": "memory-mcp-evolution",
   "turns": [
-    {"sessionId": "sess-a", "turnId": 12},
-    {"sessionId": "sess-b", "turnId": 3}
+    { "sessionId": "sess-a", "turnId": 12 },
+    { "sessionId": "sess-b", "turnId": 3 }
   ],
-  "memories": [
-    {"key": "agent-memory-three-layer-model", "folder": "memory"}
-  ]
+  "memories": [{ "key": "agent-memory-three-layer-model", "folder": "memory" }]
 }
 ```
 
@@ -124,11 +122,11 @@ A single refined turn can be referenced by multiple themes. This avoids duplicat
 
 ## 5. Tools by Layer
 
-| Layer | Tools |
-|---|---|
-| Continuous cognition | `bootstrap_workspace`, `organize_memories` |
-| Persistent knowledge | `remember`, `recall`, `search`, `list`, `move`, `delete`, `sync_workspace_index` |
-| Context & themes | `load_more_context`, `search_context`, `refine_session_turns`, `load_turn_context`, `tag_theme`, `trace_theme`, `list_themes` |
+| Layer                | Tools                                                                                                                         |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Continuous cognition | `bootstrap_workspace`, `organize_memories`                                                                                    |
+| Persistent knowledge | `remember`, `recall`, `search`, `list`, `move`, `delete`, `sync_workspace_index`                                              |
+| Context & themes     | `load_more_context`, `search_context`, `refine_session_turns`, `load_turn_context`, `tag_theme`, `trace_theme`, `list_themes` |
 
 ---
 

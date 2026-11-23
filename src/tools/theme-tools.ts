@@ -11,9 +11,10 @@ import { sanitizeFolder, sanitizeKey, toTitle } from '../utils/validation.js';
 import { toolResult } from '../utils/tools.js';
 import { safeParseFile } from '../utils/file-helpers.js';
 import { findAllWorkspaceSessions, parseWireFile } from '../context/wire-context.js';
+import { refineWireTurn } from '../background/refine-batch.js';
 
 export function createThemeTools(ctx: Ctx): ToolDefinition[] {
-  const { storeRoot, themeManager, refinedManager } = ctx;
+  const { storeRoot, themeManager, refinedManager, memoryStore } = ctx;
 
   async function handleTagTheme(args: TagThemeArgs) {
     const theme = args.theme;
@@ -27,6 +28,9 @@ export function createThemeTools(ctx: Ctx): ToolDefinition[] {
       memoryKey?: string;
       folder?: string;
       title?: string;
+      memoryId?: string;
+      revision?: number;
+      contentHash?: string;
     } = {};
     if (args.sessionId && typeof args.turnId === 'number') {
       const allSessions = findAllWorkspaceSessions();
@@ -49,17 +53,24 @@ export function createThemeTools(ctx: Ctx): ToolDefinition[] {
         return toolResult({ success: false, error: 'Invalid memoryFolder path' }, true);
       }
       const sanitizedMemoryKey = sanitizeKey(args.memoryKey);
-      const memoryFilePath = path.join(storeRoot, memoryFolder, `${sanitizedMemoryKey}.md`);
+      const detail = memoryStore.readDetailed(memoryFolder, args.memoryKey);
+      const memoryFilePath =
+        detail.filePath ?? path.join(storeRoot, memoryFolder, `${sanitizedMemoryKey}.md`);
       if (!fs.existsSync(memoryFilePath)) {
         return toolResult({ success: false, error: 'Memory not found' }, true);
       }
-      const parsed = safeParseFile(memoryFilePath);
+      const parsedTitle =
+        detail.memory?.title ?? safeParseFile(memoryFilePath)?.frontmatter?.title;
       ref.memoryKey = sanitizedMemoryKey;
       ref.folder = memoryFolder;
       ref.title =
         typeof args.memoryTitle === 'string'
           ? args.memoryTitle
-          : String(parsed?.frontmatter?.title || toTitle(sanitizedMemoryKey));
+          : String(parsedTitle || toTitle(sanitizedMemoryKey));
+      // Keep the stable identity so the reference survives a move or rename.
+      if (detail.memory?.id) ref.memoryId = detail.memory.id;
+      if (detail.memory?.revision !== undefined) ref.revision = detail.memory.revision;
+      if (detail.memory?.contentHash) ref.contentHash = detail.memory.contentHash;
     }
 
     if (!ref.sessionId && !ref.memoryKey) {
@@ -200,11 +211,10 @@ export function createThemeTools(ctx: Ctx): ToolDefinition[] {
       targetTurns = limit === 0 ? [] : targetTurns.slice(-limit);
     }
 
+    const stats = fs.statSync(session.wire, { bigint: true });
+    const source = { size: Number(stats.size), mtimeNs: stats.mtimeNs.toString() };
     const refinedTurns = targetTurns.map((turn) =>
-      refinedManager.refineTurn(
-        { ...turn, timestamp: turn.timestamp || undefined },
-        session.sessionId,
-      ),
+      refineWireTurn(refinedManager, turn, session.sessionId, source),
     );
     await refinedManager.saveRefinedTurns(session.sessionId, refinedTurns);
 

@@ -2,6 +2,7 @@
  * Context recovery tools: load_more_context, search_context, load_turn_context.
  */
 
+import fs from 'node:fs';
 import type {
   DeleteSearchViewArgs,
   ListSearchViewsArgs,
@@ -16,7 +17,6 @@ import { adaptHandler } from './types.js';
 import type { SearchMatch, TurnReference, WireTurn } from '../context/wire-context.js';
 import {
   getCurrentSessionWirePath,
-  findAllWorkspaceSessions,
   findPreviousSession,
   parseWireFile,
   buildContextWindow,
@@ -24,9 +24,6 @@ import {
   searchWireContext,
   loadTurnContext,
 } from '../context/wire-context.js';
-import fs from 'fs';
-import path from 'path';
-import crypto from 'crypto';
 import {
   DEFAULT_CLUSTER_GAP_SECONDS,
   DEFAULT_SEARCH_OUTPUT_BUDGET,
@@ -34,6 +31,17 @@ import {
   SEARCH_AGENT_MAX_LEN,
   SEARCH_SNIPPET_MAX_LEN,
 } from '../config.js';
+import {
+  SearchViewRepository,
+  InvalidSearchViewKeyError,
+  SearchViewNotFoundError,
+  SearchViewAccessError,
+  SearchViewCorruptError,
+} from '../search/search-view-repository.js';
+import { deleteSearchView as deleteSharedSearchView } from '../search/delete-search-view.js';
+import { refineWireTurn, type WireSourceStamp } from '../background/refine-batch.js';
+import { EXTRACTOR_VERSION } from '../refine/constants.js';
+import { hashRawTurn } from '../refine/freshness.js';
 import { toolResult } from '../utils/tools.js';
 
 export async function buildWorkspaceContext(
@@ -48,6 +56,9 @@ export async function buildWorkspaceContext(
     summaryRounds: unknown[];
     compactionSummaries: unknown[];
     loadedFromPrevious: boolean;
+    /** True when the source session was selected by mtime (low confidence). */
+    identityAssumed?: boolean;
+    identitySource?: 'explicit' | 'mapped' | 'guess';
   } | null;
 }> {
   const { cwd, workspaceId, storeRoot } = ctx;
@@ -75,6 +86,9 @@ export async function buildWorkspaceContext(
       summaryRounds: window.summaryRounds,
       compactionSummaries: compactionSummaries.slice(-3),
       loadedFromPrevious: true,
+      // The previous session is always an mtime selection: low confidence.
+      identityAssumed: previous.identityAssumed === true,
+      identitySource: previous.identitySource ?? 'guess',
     };
   }
 
@@ -89,7 +103,8 @@ export async function buildWorkspaceContext(
 }
 
 export function createContextTools(ctx: Ctx): ToolDefinition[] {
-  const { storeRoot, refinedManager } = ctx;
+  const { storeRoot, refinedManager, memoryStore } = ctx;
+  const searchViews = new SearchViewRepository(storeRoot);
 
   interface Cluster {
     sessionId: string;
@@ -110,13 +125,19 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
 
   function resolveDetail(args: SearchContextArgs): 'compact' | 'normal' | 'full' {
     const valid: Array<'compact' | 'normal' | 'full'> = ['compact', 'normal', 'full'];
-    if (typeof args.detail === 'string' && valid.includes(args.detail as 'compact' | 'normal' | 'full')) {
+    if (
+      typeof args.detail === 'string' &&
+      valid.includes(args.detail as 'compact' | 'normal' | 'full')
+    ) {
       return args.detail as 'compact' | 'normal' | 'full';
     }
     return 'normal';
   }
 
-  function resolveMaxOutputChars(args: SearchContextArgs, detail: 'compact' | 'normal' | 'full'): number {
+  function resolveMaxOutputChars(
+    args: SearchContextArgs,
+    detail: 'compact' | 'normal' | 'full',
+  ): number {
     if (detail === 'full') return Number.MAX_SAFE_INTEGER;
     if (typeof args.max_output_chars === 'number' && args.max_output_chars > 0) {
       return Math.max(500, Math.floor(args.max_output_chars));
@@ -174,19 +195,29 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
     };
   }
 
+  /**
+   * Trim the response to the output budget.
+   *
+   * Returns true when something had to be dropped. The scan level counters
+   * (`matchCount`, `totalMatches`) are never modified here: they describe the
+   * scan, not the rendered payload.
+   */
   function trimOutputToBudget(
     result: {
       matches: SearchMatch[] | CompactMatch[];
       clusters: NormalCluster[] | CompactCluster[];
     },
     maxChars: number,
-  ): void {
+  ): boolean {
+    let trimmed = false;
     // Matches are already sorted by score descending; drop lowest-scoring last.
     while (estimateOutputSize(result) > maxChars && result.matches.length > 0) {
       result.matches.pop();
+      trimmed = true;
     }
     while (estimateOutputSize(result) > maxChars && result.clusters.length > 0) {
       result.clusters.pop();
+      trimmed = true;
     }
     // If still over budget, strip members arrays from clusters.
     if (estimateOutputSize(result) > maxChars && result.clusters.length > 0) {
@@ -196,21 +227,18 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
         memberCount: c.memberCount,
         refinedCount: c.refinedCount,
       })) as CompactCluster[];
+      trimmed = true;
     }
+    return trimmed;
   }
 
   function groupHitsIntoBlocks(hits: WireTurn[]): WireTurn[][] {
-    const sorted = [...hits].sort(
-      (a, b) => parseInt(a.turnId, 10) - parseInt(b.turnId, 10),
-    );
+    const sorted = [...hits].sort((a, b) => parseInt(a.turnId, 10) - parseInt(b.turnId, 10));
     const blocks: WireTurn[][] = [];
     let current: WireTurn[] = [];
     for (const hit of sorted) {
       const turnId = parseInt(hit.turnId, 10);
-      if (
-        current.length === 0 ||
-        turnId === parseInt(current[current.length - 1].turnId, 10) + 1
-      ) {
+      if (current.length === 0 || turnId === parseInt(current[current.length - 1].turnId, 10) + 1) {
         current.push(hit);
       } else {
         blocks.push(current);
@@ -318,10 +346,18 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
     });
   }
 
-  async function handleSearchContext(args: SearchContextArgs) {
+  async function handleSearchContext(args: SearchContextArgs, signal?: AbortSignal) {
     const query = typeof args.query === 'string' ? args.query.trim() : '';
     if (!query) {
-      return toolResult({ query, matches: [], clusters: [], refinedCount: 0 });
+      return toolResult({
+        query,
+        matches: [],
+        clusters: [],
+        refinedCount: 0,
+        matchCount: 0,
+        isComplete: true,
+        skippedSessions: [],
+      });
     }
 
     const clusterGapSeconds = resolveClusterGapSeconds(args);
@@ -334,9 +370,11 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
 
     const searchOptions: Parameters<typeof searchWireContext>[1] = {
       limit: args.limit,
+      cursor: args.cursor,
       dateFrom: args.date_from,
       dateTo: args.date_to,
       refinedManager,
+      signal,
     };
     if (detail === 'full') {
       searchOptions.userMaxLen = Number.MAX_SAFE_INTEGER;
@@ -348,36 +386,61 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
       searchOptions.snippetMaxLen = SEARCH_SNIPPET_MAX_LEN;
     }
 
-    const { matches, hits, skippedSessionIds } = await searchWireContext(query, searchOptions);
+    const searchResult = await searchWireContext(query, searchOptions);
+    const { matches, hits, matchCount, isComplete, truncationReason } = searchResult;
+    if (truncationReason === 'invalid-cursor') {
+      return toolResult(
+        {
+          success: false,
+          error: `Invalid or stale cursor: ${args.cursor}`,
+          query,
+          matches: [],
+          clusters: [],
+          isComplete: false,
+          truncationReason,
+        },
+        true,
+      );
+    }
 
-    // Build clusters around each hit and refine any unrefined turns in them.
+    // Build clusters around each hit and refine missing or stale turns in them.
     const hitsBySession = new Map<string, WireTurn[]>();
-    for (const { sessionId, turn } of hits) {
+    const wireBySession = new Map<string, string>();
+    for (const { sessionId, turn, wire } of hits) {
       hitsBySession.set(sessionId, [...(hitsBySession.get(sessionId) || []), turn]);
+      wireBySession.set(sessionId, wire);
     }
 
     const clusters: Cluster[] = [];
     const refinedCountByCluster: number[] = [];
-    const refinedIdsBySession = new Map<string, Set<number>>();
+    const sourceBySession = new Map<string, WireSourceStamp>();
     let refinedCount = 0;
 
     // First pass: build all clusters and aggregate per-session turn ids to refine.
     const toRefineBySession = new Map<string, Map<number, WireTurn>>();
-    const skippedSessions: string[] = skippedSessionIds ? [...skippedSessionIds] : [];
+    const skippedSessions: string[] = searchResult.skippedSessionIds
+      ? [...searchResult.skippedSessionIds]
+      : [];
     for (const [sessionId, sessionHits] of hitsBySession.entries()) {
-      const wirePath =
-        getCurrentSessionWirePath()?.sessionId === sessionId
-          ? getCurrentSessionWirePath()!.wire
-          : findSessionWirePath(sessionId);
+      if (signal?.aborted) {
+        // Cancelled: stop building clusters and skip the refinement pass
+        // entirely — the caller gets the partial search result above.
+        break;
+      }
+      const wirePath = wireBySession.get(sessionId);
       if (!wirePath) {
         skippedSessions.push(sessionId);
         continue;
       }
       const { turns } = await parseWireFile(wirePath);
-
-      const existing = refinedManager.loadRefinedTurns(sessionId);
-      const existingIds = new Set(existing.map((t) => t.turnId));
-      refinedIdsBySession.set(sessionId, existingIds);
+      const stats = fs.statSync(wirePath, { bigint: true });
+      sourceBySession.set(sessionId, {
+        size: Number(stats.size),
+        mtimeNs: stats.mtimeNs.toString(),
+      });
+      const stateById = new Map(
+        refinedManager.listRefinedTurnStates(sessionId).map((state) => [state.turnId, state]),
+      );
 
       const turnById = new Map(turns.map((t) => [parseInt(t.turnId, 10), t]));
       const sessionToRefine = new Map<number, WireTurn>();
@@ -402,9 +465,15 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
         let clusterRefined = 0;
         for (const m of cluster.members) {
           occupied.add(m.turnId);
-          if (existingIds.has(m.turnId)) continue;
           const turn = turnById.get(m.turnId);
           if (!turn) continue;
+          const state = stateById.get(m.turnId);
+          if (
+            state?.extractorVersion === EXTRACTOR_VERSION &&
+            state.sourceContentHash === hashRawTurn(turn)
+          ) {
+            continue;
+          }
           sessionToRefine.set(m.turnId, turn);
           clusterRefined++;
         }
@@ -413,16 +482,27 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
     }
 
     // Second pass: batch refine per session to avoid repeated saves and redundant work.
+    // A cancelled request skips the refinement side effect entirely.
+    if (signal?.aborted) {
+      const baseOutput = {
+        query,
+        matchCount,
+        returnedMatches: 0,
+        isComplete: false,
+        truncationReason: 'request-cancelled',
+        nextCursor: searchResult.nextCursor,
+        refinedCount: 0,
+        savedViewKey: null,
+      };
+      return toolResult({ ...baseOutput, matches: [], clusters: [] });
+    }
     for (const [sessionId, sessionToRefine] of toRefineBySession.entries()) {
       if (sessionToRefine.size === 0) continue;
-      const refinedTurns = Array.from(sessionToRefine.values())
-        .map((turn) =>
-          refinedManager.refineTurn(
-            { ...turn, timestamp: turn.timestamp || undefined },
-            sessionId,
-          ),
-        )
-        .filter((t): t is NonNullable<typeof t> => t !== null);
+      const source = sourceBySession.get(sessionId);
+      if (!source) continue;
+      const refinedTurns = Array.from(sessionToRefine.values()).map((turn) =>
+        refineWireTurn(refinedManager, turn, sessionId, source),
+      );
 
       if (refinedTurns.length > 0) {
         await refinedManager.saveRefinedTurns(sessionId, refinedTurns);
@@ -430,136 +510,137 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
       }
     }
 
-    // Save the search view (only references, no content).
-    saveSearchView(
+    // Save the search view (only references, no content) under the workspace
+    // lock so it cannot interleave with a concurrent cascade delete.
+    const shouldSaveView = args.save_view !== false;
+    let savedViewKey: string | null = null;
+    if (shouldSaveView) {
+      savedViewKey = await saveSearchView({
+        query,
+        clusters,
+        refinedCountByCluster,
+        matchCount,
+        isComplete: isComplete && !args.cursor,
+        refinedCount,
+        clusterGapSeconds,
+        maxClusterSize,
+        skippedSessions,
+        dateFrom: args.date_from ?? null,
+        dateTo: args.date_to ?? null,
+        limit: searchResult.totalMatches ?? matchCount,
+      });
+    }
+
+    const normalClusters = clusters.map((c, i) =>
+      buildNormalCluster(c, refinedCountByCluster[i] || 0),
+    );
+    const compactClusters = clusters.map((c, i) =>
+      buildCompactCluster(c, refinedCountByCluster[i] || 0),
+    );
+    const compactMatches = matches.map(buildCompactMatch);
+
+    const baseOutput = {
       query,
-      clusters,
-      refinedCountByCluster,
-      matches.length,
+      // `totalMatches` is the complete merged total; it is omitted when the
+      // scan was partial because a partial scan cannot certify a total.
+      totalMatches: searchResult.totalMatches,
+      matchCount,
+      returnedMatches: matches.length,
+      isComplete,
+      truncationReason,
+      nextCursor: searchResult.nextCursor,
+      corruptRefinedRows: searchResult.corruptRefinedRows,
       refinedCount,
       clusterGapSeconds,
       maxClusterSize,
       skippedSessions,
-    );
-
-    const normalClusters = clusters.map((c, i) => buildNormalCluster(c, refinedCountByCluster[i] || 0));
-    const compactClusters = clusters.map((c, i) => buildCompactCluster(c, refinedCountByCluster[i] || 0));
-    const compactMatches = matches.map(buildCompactMatch);
+      skippedSessionIds: skippedSessions,
+      savedViewKey,
+    };
 
     if (detail === 'normal') {
       const normalResult = {
-        query,
-        totalMatches: matches.length,
-        refinedCount,
-        clusterGapSeconds,
-        maxClusterSize,
-        skippedSessions,
+        ...baseOutput,
         matches,
         clusters: normalClusters,
       };
-      trimOutputToBudget(normalResult, maxOutputChars);
-      return toolResult(normalResult);
+      const outputTruncated = trimOutputToBudget(normalResult, maxOutputChars);
+      return toolResult({ ...normalResult, outputTruncated });
     }
 
     if (detail === 'compact') {
       return toolResult({
-        query,
-        totalMatches: matches.length,
-        refinedCount,
-        clusterGapSeconds,
-        maxClusterSize,
-        skippedSessions,
+        ...baseOutput,
         matches: compactMatches,
         clusters: compactClusters,
       });
     }
 
     return toolResult({
-      query,
-      totalMatches: matches.length,
-      refinedCount,
-      clusterGapSeconds,
-      maxClusterSize,
-      skippedSessions,
+      ...baseOutput,
       matches,
       clusters: normalClusters,
     });
   }
 
-  function findSessionWirePath(sessionId: string): string | null {
-    const sessions = findAllWorkspaceSessions();
-    const session = sessions.find((s) => s.sessionId === sessionId);
-    return session ? session.wire : null;
-  }
-
-  function saveSearchView(
-    query: string,
-    clusters: Cluster[],
-    refinedCountByCluster: number[] = [],
-    totalMatches = 0,
-    totalRefined = 0,
-    gapSeconds = DEFAULT_CLUSTER_GAP_SECONDS,
-    maxClusterSize = 15,
-    skippedSessions: string[] = [],
-  ): void {
-    const normalized = query
-      .toLowerCase()
-      .split(/\s+/)
-      .filter((t) => t.length > 0)
-      .sort()
-      .join('-');
-    const hash = crypto.createHash('md5').update(normalized).digest('hex').slice(0, 12);
-    const fileName = `search-${hash}.json`;
-    const dir = path.join(storeRoot, 'searches');
-    fs.mkdirSync(dir, { recursive: true });
-
-    const view = {
-      query,
-      createdAt: new Date().toISOString(),
-      totalMatches,
-      totalRefined,
-      gapSeconds,
-      maxClusterSize,
-      skippedSessions,
-      clusters: clusters.map((c, i) => ({
-        sessionId: c.sessionId,
-        hitTurnId: c.hitTurnId,
-        memberCount: c.members.length,
-        refinedCount: refinedCountByCluster[i] || 0,
-        members: c.members,
-      })),
-    };
-
-    const tmpPath = path.join(dir, `${fileName}.tmp`);
-    fs.writeFileSync(tmpPath, JSON.stringify(view, null, 2), 'utf8');
-    fs.renameSync(tmpPath, path.join(dir, fileName));
+  /**
+   * Persist a search view through the shared repository.
+   *
+   * The repository generates a fresh `search-v2-<32 hex>` key and stores the
+   * full query parameters inside the file.
+   */
+  async function saveSearchView(input: {
+    query: string;
+    clusters: Cluster[];
+    refinedCountByCluster?: number[];
+    matchCount: number;
+    isComplete: boolean;
+    refinedCount: number;
+    clusterGapSeconds: number;
+    maxClusterSize: number;
+    skippedSessions: string[];
+    dateFrom: string | null;
+    dateTo: string | null;
+    limit: number;
+  }): Promise<string | null> {
+    try {
+      const record = await memoryStore.withWorkspaceLock(() =>
+        searchViews.save({
+          query: input.query,
+          filters: {
+            dateFrom: input.dateFrom,
+            dateTo: input.dateTo,
+            limit: input.limit,
+            clusterGapSeconds: input.clusterGapSeconds,
+            maxClusterSize: input.maxClusterSize,
+          },
+          counts: {
+            totalMatches: input.isComplete ? input.matchCount : 0,
+            matchCount: input.matchCount,
+            isComplete: input.isComplete,
+            totalRefined: input.refinedCount,
+            skippedSessionIds: input.skippedSessions,
+          },
+          clusters: input.clusters.map((c, i) => ({
+            sessionId: c.sessionId,
+            hitTurnId: c.hitTurnId,
+            memberCount: c.members.length,
+            refinedCount: input.refinedCountByCluster?.[i] || 0,
+            members: c.members,
+          })),
+        }),
+      );
+      return record.key;
+    } catch {
+      // A failed view write must not fail the search itself.
+      return null;
+    }
   }
 
   function handleListSearchViews(args: ListSearchViewsArgs = {}) {
-    const dir = path.join(storeRoot, 'searches');
-    if (!fs.existsSync(dir)) {
-      return toolResult({ views: [] });
-    }
-
     const limit = typeof args.limit === 'number' ? Math.max(1, Math.floor(args.limit)) : 20;
-    const files = fs
-      .readdirSync(dir)
-      .filter((f) => f.startsWith('search-') && f.endsWith('.json'))
-      .map((fileName) => {
-        const filePath = path.join(dir, fileName);
-        const stat = fs.statSync(filePath);
-        const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-        return {
-          fileName,
-          query: content.query || '',
-          createdAt: content.createdAt || stat.mtime.toISOString(),
-          clusterCount: content.clusters?.length || 0,
-        };
-      })
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, limit);
-
-    return toolResult({ views: files });
+    const views = searchViews.list(limit);
+    return toolResult({ views });
   }
 
   async function handleLoadTurnContext(args: LoadTurnContextArgs) {
@@ -582,42 +663,26 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
       return toolResult({ success: false, error: 'Missing or invalid "key"' }, true);
     }
     const deleteRefinedTurns = args.deleteRefinedTurns === true;
-    const filePath = path.join(storeRoot, 'searches', `${key}.json`);
-    if (!fs.existsSync(filePath)) {
-      return toolResult({ success: false, error: 'Search view not found' }, true);
-    }
 
-    const refinedTurnsToDelete: Array<{ sessionId: string; turnId: number }> = [];
-    if (deleteRefinedTurns) {
-      try {
-        const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-        const clusters = Array.isArray(data.clusters) ? data.clusters : [];
-        const seen = new Set<string>();
-        for (const cluster of clusters) {
-          const members = Array.isArray(cluster.members) ? cluster.members : [];
-          for (const m of members) {
-            if (m && typeof m.sessionId === 'string' && typeof m.turnId === 'number') {
-              const id = `${m.sessionId}:${m.turnId}`;
-              if (!seen.has(id)) {
-                seen.add(id);
-                refinedTurnsToDelete.push({ sessionId: m.sessionId, turnId: m.turnId });
-              }
-            }
-          }
-        }
-      } catch {
-        // Ignore parse errors and proceed with deleting the view file.
+    try {
+      // The cascade (and the shared-reference check) lives in one shared
+      // service so the MCP tool and the HTTP endpoint cannot drift apart.
+      const result = await deleteSharedSearchView(ctx, key, deleteRefinedTurns);
+      return toolResult({ success: true, ...result });
+    } catch (err) {
+      if (
+        err instanceof InvalidSearchViewKeyError ||
+        err instanceof SearchViewNotFoundError ||
+        err instanceof SearchViewAccessError ||
+        err instanceof SearchViewCorruptError
+      ) {
+        return toolResult({ success: false, error: err.message, code: err.code, key }, true);
       }
+      return toolResult(
+        { success: false, error: err instanceof Error ? err.message : String(err), key },
+        true,
+      );
     }
-
-    fs.unlinkSync(filePath);
-
-    let deletedRefinedTurns = 0;
-    if (deleteRefinedTurns && refinedTurnsToDelete.length > 0) {
-      deletedRefinedTurns = await refinedManager.deleteRefinedTurns(refinedTurnsToDelete);
-    }
-
-    return toolResult({ success: true, deletedRefinedTurns });
   }
 
   const tools: ToolDefinition[] = [
@@ -652,6 +717,11 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
           date_from: { type: 'string', description: 'Optional start date in YYYY-MM-DD format' },
           date_to: { type: 'string', description: 'Optional end date in YYYY-MM-DD format' },
           limit: { type: 'number', description: 'Maximum number of matching rounds to return' },
+          cursor: {
+            type: 'string',
+            description:
+              'Resume from the nextCursor returned by a previous partial search. Cursor pages do not report a global totalMatches.',
+          },
           cluster_gap_seconds: {
             type: 'number',
             description:
@@ -659,8 +729,7 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
           },
           max_cluster_size: {
             type: 'number',
-            description:
-              '单个 cluster 最多包含的 turn 数，防止连续讨论过长时上下文爆炸。默认 15。',
+            description: '单个 cluster 最多包含的 turn 数，防止连续讨论过长时上下文爆炸。默认 15。',
           },
           detail: {
             type: 'string',
@@ -672,6 +741,11 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
             type: 'number',
             description:
               'Maximum output length in characters for normal mode. Default 6000. Ignored in compact/full.',
+          },
+          save_view: {
+            type: 'boolean',
+            description:
+              'Persist this search as a search view. Default true. Set false for read-only guard checks so the search does not create state.',
           },
         },
         required: ['query'],
@@ -693,11 +767,15 @@ export function createContextTools(ctx: Ctx): ToolDefinition[] {
     {
       name: 'delete_search_view',
       description:
-        'Delete a saved search view. Set deleteRefinedTurns to true to also remove the refined turns referenced by this view (useful for purging low-quality refined data).',
+        'Delete a saved search view. Set deleteRefinedTurns to true to also remove the refined rows referenced only by this view. This invalidates the current cache rather than creating a tombstone: the background indexer will rebuild missing rows from the wire on a later pass. Rows still referenced by another search view or by a theme are kept and reported as skippedSharedRefinedTurns.',
       inputSchema: {
         type: 'object',
         properties: {
-          key: { type: 'string', description: 'Search view file key (e.g. search-abc123.json without extension)' },
+          key: {
+            type: 'string',
+            description:
+              'Search view key without extension: "search-<12 hex>" (legacy) or "search-v2-<32 hex>".',
+          },
           deleteRefinedTurns: {
             type: 'boolean',
             description: 'If true, also delete all refined turns referenced by this view.',

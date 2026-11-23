@@ -5,10 +5,25 @@
 import fs from 'fs';
 import path from 'path';
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { serve, type ServerType } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import type { Ctx } from '../types.js';
+import type { ReconcileOutcome } from '../dao/index-reconciler.js';
 import { getProjectRoot } from '../utils/paths.js';
+import { metrics, healthFromMetrics } from '../utils/metrics.js';
+import { WorkspaceJournal } from '../utils/workspace-journal.js';
+import {
+  MAX_REQUEST_BODY_BYTES,
+  generateVisToken,
+  isAllowedHost,
+  isAllowedOrigin,
+  isJsonContentType,
+  isSafePathParam,
+  isSupportedListenerHostname,
+  isValidBearer,
+  type ListenerInfo,
+} from './security.js';
 import {
   getWorkspace,
   getThemes,
@@ -23,10 +38,17 @@ import {
   listMemoryFolders,
   writeMemory,
   deleteMemory,
+  restoreMemory,
   createFolder,
   renameFolder,
   deleteFolder,
 } from './api.js';
+import {
+  InvalidSearchViewKeyError,
+  SearchViewAccessError,
+  SearchViewNotFoundError,
+  SearchViewRepository,
+} from '../search/search-view-repository.js';
 
 const KIMI_ORIGIN = 'http://127.0.0.1:58627';
 const THEME_CACHE_TTL_MS = 60_000;
@@ -130,24 +152,206 @@ export interface VisServerOptions {
   ctx: Ctx;
   port: number;
   hostname?: string;
+  /** Bearer token required by every /api/* route. Generated when omitted. */
+  authToken?: string;
   onReady?: (url: string) => void;
 }
 
-function getStaticRoot(): string {
-  return path.join(getProjectRoot(), 'dist', 'vis', 'static');
+export interface VisAppOptions {
+  /** Bearer token required by every /api/* route. Generated when omitted. */
+  authToken?: string;
+  /** Loopback address the dashboard is bound to. */
+  hostname?: string;
+  /** Port the dashboard is bound to; null while the port is not yet known. */
+  port?: number | null;
 }
 
-export function createApp(ctx: Ctx): Hono {
+/**
+ * Basic content security policy.
+ *
+ * The dashboard ships no inline script and does not need eval, so scripts are
+ * restricted to same-origin files. Inline styles are still used by the
+ * generated markup (table alignment, status colors), hence 'unsafe-inline'
+ * for styles only.
+ */
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self' data:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+].join('; ');
+
+const appListeners = new WeakMap<Hono, ListenerInfo>();
+const appTokens = new WeakMap<Hono, string>();
+
+/** The listener information (host/port) currently accepted by an app. */
+export function getVisListener(app: Hono): ListenerInfo | undefined {
+  return appListeners.get(app);
+}
+
+/** Update the accepted host/port, e.g. once an ephemeral port is known. */
+export function setVisListener(app: Hono, hostname: string, port: number): void {
+  const listener = appListeners.get(app);
+  if (!listener) return;
+  listener.hostname = hostname;
+  listener.port = port;
+}
+
+/** The bearer token an app requires. */
+export function getVisAuthToken(app: Hono): string | undefined {
+  return appTokens.get(app);
+}
+
+function getStaticRoot(): string {
+  const root = getProjectRoot();
+  // Prefer the sources when running from a checkout so the dashboard always
+  // matches the code; packaged installs only ship dist/.
+  const sourceStatic = path.join(root, 'src', 'vis', 'static');
+  if (fs.existsSync(sourceStatic)) return sourceStatic;
+  return path.join(root, 'dist', 'vis', 'static');
+}
+
+type JsonBodyResult =
+  | { ok: true; body: Record<string, unknown> }
+  | { ok: false; response: Response };
+
+/**
+ * Read and parse a JSON request body, enforcing the 1 MiB limit while the
+ * body is streamed so oversized payloads are rejected instead of buffered.
+ */
+async function readJsonBody(c: Context): Promise<JsonBodyResult> {
+  const stream = c.req.raw.body;
+  if (!stream) return { ok: true, body: {} };
+
+  const reader = stream.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > MAX_REQUEST_BODY_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        return { ok: false, response: c.json({ error: 'Payload Too Large' }, 413) };
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } catch {
+    return { ok: false, response: c.json({ error: 'Invalid request body' }, 400) };
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // The stream may already be released.
+    }
+  }
+
+  if (total === 0) return { ok: true, body: {} };
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  } catch {
+    return { ok: false, response: c.json({ error: 'Invalid JSON body' }, 400) };
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { ok: false, response: c.json({ error: 'Invalid JSON body' }, 400) };
+  }
+  return { ok: true, body: parsed as Record<string, unknown> };
+}
+
+export function createApp(ctx: Ctx, options: VisAppOptions = {}): Hono {
   const app = new Hono();
 
+  const authToken = options.authToken && options.authToken.length > 0
+    ? options.authToken
+    : generateVisToken();
+  const listener: ListenerInfo = {
+    hostname: options.hostname ?? '127.0.0.1',
+    port: options.port ?? null,
+  };
+  appListeners.set(app, listener);
+  appTokens.set(app, authToken);
+
+  app.use('*', async (c, next) => {
+    c.header('Content-Security-Policy', CONTENT_SECURITY_POLICY);
+    c.header('X-Content-Type-Options', 'nosniff');
+    c.header('Referrer-Policy', 'no-referrer');
+    c.header('X-Frame-Options', 'DENY');
+    c.header('Cross-Origin-Opener-Policy', 'same-origin');
+    c.header('Cross-Origin-Resource-Policy', 'same-origin');
+    if (c.req.path.startsWith('/api/')) {
+      c.header('Cache-Control', 'no-store');
+    }
+    // Read 10s / write 30s request timeout: a hung handler must not hold the
+    // browser (or the caller) forever.
+    const timeoutMs = c.req.method === 'GET' || c.req.method === 'HEAD' ? 10_000 : 30_000;
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`request timeout after ${timeoutMs}ms`)), timeoutMs);
+      if (typeof timer.unref === 'function') timer.unref();
+    });
+    const started = Date.now();
+    metrics.increment('http_requests_active');
+    try {
+      await Promise.race([next(), timeout]);
+      metrics.observe('http_request_duration_ms', Date.now() - started);
+    } catch (err) {
+      metrics.increment('http_request_errors');
+      if (err instanceof Error && err.message.startsWith('request timeout')) {
+        return c.json({ error: 'Gateway Timeout' }, 504);
+      }
+      throw err;
+    } finally {
+      metrics.increment('http_requests_active', -1);
+      if (timer) clearTimeout(timer);
+    }
+  });
+
   app.use('/api/*', async (c, next) => {
-    c.header('Access-Control-Allow-Origin', '*');
-    c.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-    c.header('Access-Control-Allow-Headers', 'Content-Type');
-    if (c.req.method === 'OPTIONS') return c.body(null, 204);
-    // Refresh the index from disk before read endpoints so the dashboard stays
-    // in sync when the MCP server (or another process) writes new memories.
-    if (c.req.method === 'GET') {
+    // DNS-rebinding hardening: only the address we actually listen on.
+    if (!isAllowedHost(c.req.header('host'), listener)) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+    // Same-origin only: the dashboard never talks to a foreign origin.
+    if (!isAllowedOrigin(c.req.header('origin'), listener)) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+    // Cross-origin preflight is not supported at all.
+    if (c.req.method === 'OPTIONS') {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+    if (!isValidBearer(c.req.header('authorization'), authToken)) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+    if (c.req.method === 'POST' || c.req.method === 'PUT' || c.req.method === 'PATCH') {
+      if (!isJsonContentType(c.req.header('content-type'))) {
+        return c.json({ error: 'Unsupported Media Type' }, 415);
+      }
+      const lengthHeader = c.req.header('content-length');
+      if (lengthHeader) {
+        const length = Number(lengthHeader);
+        if (Number.isFinite(length) && length > MAX_REQUEST_BODY_BYTES) {
+          return c.json({ error: 'Payload Too Large' }, 413);
+        }
+      }
+    }
+    // Only index-backed views need a reconcile. Operational endpoints and
+    // refined-only views must not repeatedly scan the Markdown corpus.
+    const indexBackedRead =
+      c.req.path === '/api/workspace' ||
+      c.req.path === '/api/memories' ||
+      c.req.path === '/api/folders' ||
+      c.req.path.startsWith('/api/themes');
+    if (c.req.method === 'GET' && indexBackedRead) {
       try {
         await ctx.indexDao.reconcileIndex();
       } catch {
@@ -155,6 +359,20 @@ export function createApp(ctx: Ctx): Hono {
       }
     }
     await next();
+  });
+
+  // Health check: fixed, information free, no authentication required.
+  app.get('/healthz', (c) => c.json({ status: 'ok' }));
+
+  // Authenticated operational endpoints: health verdict and content-free
+  // metrics for the diagnostics loop.
+  app.get('/api/health', (c) => {
+    const health = healthFromMetrics();
+    return c.json({ ...health, indexState: ctx.indexDao.getIndexState().state });
+  });
+
+  app.get('/api/metrics', (c) => {
+    return c.json(metrics.snapshot());
   });
 
   app.get('/api/workspace', (c) => {
@@ -181,41 +399,36 @@ export function createApp(ctx: Ctx): Hono {
   });
 
   app.get('/api/searches', (c) => {
-    const dir = path.join(ctx.storeRoot, 'searches');
-    if (!fs.existsSync(dir)) {
-      return c.json([]);
-    }
-    const entries = fs
-      .readdirSync(dir)
-      .filter((f) => f.endsWith('.json'))
-      .map((f) => {
-        try {
-          const raw = fs.readFileSync(path.join(dir, f), 'utf8');
-          const data = JSON.parse(raw);
-          const clusters = Array.isArray(data.clusters) ? data.clusters : [];
-          return {
-            key: data.key || f.replace(/\.json$/, ''),
-            query: data.query || '',
-            createdAt: data.createdAt || '',
-            resultCount: clusters.length,
-          };
-        } catch {
-          return null;
-        }
-      })
-      .filter((e): e is NonNullable<typeof e> => e !== null)
-      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-    return c.json(entries);
+    const repository = new SearchViewRepository(ctx.storeRoot);
+    return c.json(
+      repository.list().map((view) => ({
+        key: view.key,
+        query: view.query,
+        createdAt: view.createdAt,
+        resultCount: view.clusterCount,
+      })),
+    );
   });
 
   app.get('/api/searches/:key', (c) => {
     const key = decodeURIComponent(c.req.param('key'));
-    const filePath = path.join(ctx.storeRoot, 'searches', `${key}.json`);
-    if (!fs.existsSync(filePath)) {
-      return c.json({ error: 'Search view not found' }, 404);
+    const repository = new SearchViewRepository(ctx.storeRoot);
+    let data;
+    try {
+      data = repository.load(key);
+    } catch (error) {
+      const statusCode =
+        error instanceof InvalidSearchViewKeyError || error instanceof SearchViewAccessError
+          ? 400
+          : error instanceof SearchViewNotFoundError
+            ? 404
+            : 500;
+      return c.json(
+        { error: error instanceof Error ? error.message : String(error) },
+        statusCode,
+      );
     }
-    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    const clusters = Array.isArray(data.clusters) ? data.clusters : [];
+    const clusters = data.clusters;
     const seen = new Set<string>();
     const turns: Array<{
       sessionId: string;
@@ -279,28 +492,61 @@ export function createApp(ctx: Ctx): Hono {
     return c.json(listMemoryFolders(ctx));
   });
 
+  // Restore gets a dedicated top-level path: a `/restore` suffix under the
+  // generic `:folder{.+}/:key` route is ambiguous (the greedy `{.+}` capture
+  // makes the write route swallow the suffix and create a bogus file).
+  app.post('/api/restore', async (c) => {
+    const parsed = await readJsonBody(c);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.body as { folder?: unknown; key?: unknown };
+    if (typeof body.folder !== 'string' || typeof body.key !== 'string') {
+      return c.json({ ok: false, error: 'folder and key are required' }, 400);
+    }
+    if (!isSafePathParam(body.folder) || !isSafePathParam(body.key)) {
+      return c.json({ ok: false, error: 'Invalid folder path' }, 400);
+    }
+    const result = await restoreMemory(ctx, body.folder, body.key);
+    return c.json(result, result.ok ? 200 : 404);
+  });
+
   app.post('/api/memory/:folder{.+}/:key', async (c) => {
     const folder = decodeURIComponent(c.req.param('folder'));
     const key = decodeURIComponent(c.req.param('key'));
-    const body = (await c.req.json().catch(() => ({}))) as {
+    if (!isSafePathParam(folder) || !isSafePathParam(key)) {
+      return c.json({ ok: false, error: 'Invalid folder path' }, 400);
+    }
+    const parsed = await readJsonBody(c);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.body as {
       content?: unknown;
       title?: unknown;
       tags?: unknown;
+      expectedRevision?: unknown;
+      expectedContentHash?: unknown;
     };
     const tags = Array.isArray(body.tags)
       ? body.tags.filter((t): t is string => typeof t === 'string')
-      : [];
+      : undefined;
     const result = await writeMemory(ctx, folder, key, {
       content: typeof body.content === 'string' ? body.content : '',
       title: typeof body.title === 'string' ? body.title : undefined,
       tags,
+      expectedRevision:
+        typeof body.expectedRevision === 'number' && Number.isInteger(body.expectedRevision)
+          ? body.expectedRevision
+          : undefined,
+      expectedContentHash:
+        typeof body.expectedContentHash === 'string' ? body.expectedContentHash : undefined,
     });
-    return c.json(result, result.ok ? 200 : 400);
+    return c.json(result, result.ok ? 200 : (result.statusCode ?? 500));
   });
 
   app.delete('/api/memory/:folder{.+}/:key', async (c) => {
     const folder = decodeURIComponent(c.req.param('folder'));
     const key = decodeURIComponent(c.req.param('key'));
+    if (!isSafePathParam(folder) || !isSafePathParam(key)) {
+      return c.json({ ok: false, error: 'Invalid folder path' }, 400);
+    }
     const result = await deleteMemory(ctx, folder, key);
     return c.json(result, result.ok ? 200 : 404);
   });
@@ -308,15 +554,23 @@ export function createApp(ctx: Ctx): Hono {
   app.get('/api/memory/:folder{.+}/:key', (c) => {
     const folder = decodeURIComponent(c.req.param('folder'));
     const key = decodeURIComponent(c.req.param('key'));
+    if (!isSafePathParam(folder) || !isSafePathParam(key)) {
+      return c.json({ error: 'Invalid folder path' }, 400);
+    }
     const result = getMemoryContent(ctx, folder, key);
     if (!result) return c.json({ error: 'Memory not found' }, 404);
     return c.json(result);
   });
 
   app.post('/api/folders', async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as { folder?: unknown };
+    const parsed = await readJsonBody(c);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.body as { folder?: unknown };
     if (typeof body.folder !== 'string') {
       return c.json({ ok: false, error: 'folder is required' }, 400);
+    }
+    if (!isSafePathParam(body.folder)) {
+      return c.json({ ok: false, error: 'Invalid folder path' }, 400);
     }
     const result = await createFolder(ctx, body.folder);
     return c.json(result, result.ok ? 200 : 400);
@@ -324,9 +578,17 @@ export function createApp(ctx: Ctx): Hono {
 
   app.post('/api/folders/:folder{.+}/rename', async (c) => {
     const folder = decodeURIComponent(c.req.param('folder'));
-    const body = (await c.req.json().catch(() => ({}))) as { newFolder?: unknown };
+    if (!isSafePathParam(folder)) {
+      return c.json({ ok: false, error: 'Invalid folder path' }, 400);
+    }
+    const parsed = await readJsonBody(c);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.body as { newFolder?: unknown };
     if (typeof body.newFolder !== 'string') {
       return c.json({ ok: false, error: 'newFolder is required' }, 400);
+    }
+    if (!isSafePathParam(body.newFolder)) {
+      return c.json({ ok: false, error: 'Invalid folder path' }, 400);
     }
     const result = await renameFolder(ctx, folder, body.newFolder);
     return c.json(result, result.ok ? 200 : 400);
@@ -334,22 +596,45 @@ export function createApp(ctx: Ctx): Hono {
 
   app.delete('/api/folders/:folder{.+}', async (c) => {
     const folder = decodeURIComponent(c.req.param('folder'));
+    if (!isSafePathParam(folder)) {
+      return c.json({ ok: false, error: 'Invalid folder path' }, 400);
+    }
     const recursive = c.req.query('recursive') === 'true';
     const result = await deleteFolder(ctx, folder, recursive);
     return c.json(result, result.ok ? 200 : 400);
   });
 
   app.post('/api/essence', async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as { content?: unknown };
+    const parsed = await readJsonBody(c);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.body as { content?: unknown; expectedRevision?: unknown };
     if (typeof body.content !== 'string') {
       return c.json({ error: 'content is required' }, 400);
     }
-    return c.json(saveEssence(ctx, body.content));
+    const expectedRevision =
+      typeof body.expectedRevision === 'number' && Number.isInteger(body.expectedRevision)
+        ? body.expectedRevision
+        : undefined;
+    const result = await saveEssence(ctx, body.content, expectedRevision);
+    return c.json(result, result.ok ? 200 : (result.statusCode ?? 500));
+  });
+
+  app.post('/api/essence/rollback', async (c) => {
+    const parsed = await readJsonBody(c);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.body as { revision?: unknown };
+    const revision =
+      typeof body.revision === 'number' && Number.isInteger(body.revision) ? body.revision : undefined;
+    const { rollbackEssence } = await import('../tools/system-tools.js');
+    const result = await rollbackEssence(ctx, revision);
+    return c.json(result, result.success ? 200 : 400);
   });
 
   app.post('/api/themes/:theme', async (c) => {
     const theme = decodeURIComponent(c.req.param('theme'));
-    const body = (await c.req.json().catch(() => ({}))) as {
+    const parsed = await readJsonBody(c);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.body as {
       displayName?: unknown;
       removeTurns?: unknown;
     };
@@ -368,13 +653,13 @@ export function createApp(ctx: Ctx): Hono {
         .map((t) => ({ sessionId: t.sessionId, turnId: t.turnId }));
     }
 
-    const result = updateTheme(ctx, theme, patch);
+    const result = await updateTheme(ctx, theme, patch);
     return c.json(result, result.ok ? 200 : 404);
   });
 
   app.delete('/api/themes/:theme', async (c) => {
     const theme = decodeURIComponent(c.req.param('theme'));
-    const result = deleteTheme(ctx, theme);
+    const result = await deleteTheme(ctx, theme);
     return c.json(result, result.ok ? 200 : 404);
   });
 
@@ -382,12 +667,26 @@ export function createApp(ctx: Ctx): Hono {
     const key = decodeURIComponent(c.req.param('key'));
     const deleteRefinedTurns = c.req.query('deleteRefinedTurns') === 'true';
     const result = await deleteSearchView(ctx, key, deleteRefinedTurns);
-    return c.json(result, result.ok ? 200 : 404);
+    return c.json(result, result.ok ? 200 : (result.statusCode ?? 500));
   });
 
   app.post('/api/sync', async (c) => {
-    const result = await ctx.indexDao.reconcileIndex();
-    return c.json(result);
+    // The reconcile outcome feeds the journal recovery: a `synced: false`
+    // result keeps every prepared entry on disk instead of dropping the
+    // only recovery clue (same contract as sync_workspace_index).
+    let syncOutcome: ReconcileOutcome | null = null;
+    const journal = new WorkspaceJournal(ctx.storeRoot);
+    const recovery = await journal.recover(async () => {
+      syncOutcome = await ctx.indexDao.reconcileIndex();
+      return syncOutcome;
+    });
+    return c.json({
+      ...(syncOutcome as unknown as object),
+      indexState: ctx.indexDao.getIndexState().state,
+      journalRecovered: recovery.recovered,
+      journalFailed: recovery.failed,
+      journalCorrupt: recovery.corrupt,
+    });
   });
 
   app.get('/kimi-theme.css', async (c) => {
@@ -422,7 +721,20 @@ export function createApp(ctx: Ctx): Hono {
 
 export function startVisServer(options: VisServerOptions): ServerType {
   const { ctx, port, hostname = '127.0.0.1', onReady } = options;
-  const app = createApp(ctx);
+
+  // The dashboard is a local-only tool: binding it to a non-loopback address
+  // would expose the workspace memory to the local network.
+  if (!isSupportedListenerHostname(hostname)) {
+    throw new Error(
+      `Refusing to bind the memory dashboard to a non-loopback address: ${hostname}`,
+    );
+  }
+
+  const authToken = options.authToken && options.authToken.length > 0
+    ? options.authToken
+    : generateVisToken();
+  const app = createApp(ctx, { authToken, hostname, port: port === 0 ? null : port });
+
   const server = serve(
     {
       fetch: app.fetch,
@@ -430,8 +742,13 @@ export function startVisServer(options: VisServerOptions): ServerType {
       hostname,
     },
     () => {
-      const url = `http://${hostname}:${port}`;
-      onReady?.(url);
+      const address = server.address();
+      const actualPort =
+        address && typeof address === 'object' && 'port' in address
+          ? (address as { port: number }).port
+          : port;
+      setVisListener(app, hostname, actualPort);
+      onReady?.(`http://${hostname}:${actualPort}`);
     },
   );
   return server;

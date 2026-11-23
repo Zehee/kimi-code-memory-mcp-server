@@ -36,6 +36,7 @@ export const en = {
   'essence.editorPlaceholder': 'Workspace essence is empty. Write a short constitution here…',
   'essence.empty': 'No essence yet. Click Edit to write one.',
   'essence.saved': 'Essence saved.',
+  'essence.conflict': 'Save conflict: the essence changed elsewhere. Reload the latest revision before saving again.',
 
   // ---- stats ----
   'stats.loading': 'Loading stats…',
@@ -59,6 +60,7 @@ export const en = {
   'themes.col.memories': 'Memories',
   'themes.col.actions': 'Actions',
   'themes.empty': 'No themes yet.',
+  'themes.corrupt': 'Corrupt theme file',
 
   // ---- theme detail ----
   'theme.detailFallback': 'Theme',
@@ -73,9 +75,9 @@ export const en = {
   'confirm.deleteTheme': 'Delete theme "{name}"?',
   'confirm.deleteSearchView': 'Delete search view "{key}"?',
   'confirm.deleteRefinedTurns':
-    'Also delete the refined turns referenced by this view?\n\nCancel keeps the refined turns.',
-  'confirm.deleteFolder': 'Delete folder "{path}" and all its contents? This cannot be undone.',
-  'confirm.deleteMemoryFile': 'Delete "{path}"? This cannot be undone.',
+    'Also invalidate the refined turns referenced only by this view?\n\nThe background indexer may rebuild them from the wire. Cancel keeps the current rows.',
+  'confirm.deleteFolder': 'Delete folder "{path}"? Memories move to the trash and can be restored via restore_memory; non-memory files stay in place.',
+  'confirm.deleteMemoryFile': 'Delete "{path}"? The memory moves to the trash and can be restored via restore_memory.',
 
   // ---- searches list ----
   'searches.title': 'Saved Searches',

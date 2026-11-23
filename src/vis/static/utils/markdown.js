@@ -1,5 +1,41 @@
 import { escapeHtml } from './helpers.js';
 
+/** URL schemes that may be used in rendered markdown links. */
+const ALLOWED_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
+
+function decodeHtmlEntities(value) {
+  return value
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0*39;/g, "'")
+    .replace(/&#x0*27;/gi, "'")
+    .replace(/&amp;/g, '&');
+}
+
+/**
+ * Only https/http/mailto and explicit relative links are allowed. Schemes such
+ * as javascript:, data: or vbscript: are rejected, and protocol relative
+ * URLs are rejected as well because they point at another host.
+ */
+export function sanitizeUrl(rawUrl) {
+  if (typeof rawUrl !== 'string') return null;
+  const decoded = decodeHtmlEntities(rawUrl);
+  // Browsers ignore tabs and newlines inside a URL before resolving it.
+  const probe = decoded.replace(/[\t\n\r]/g, '').trim();
+  if (!probe) return null;
+  if (probe.startsWith('#')) return probe;
+  if (probe.startsWith('//')) return null;
+
+  const schemeMatch = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(probe);
+  if (schemeMatch) {
+    const protocol = `${schemeMatch[1].toLowerCase()}:`;
+    if (!ALLOWED_PROTOCOLS.has(protocol)) return null;
+    return probe;
+  }
+  return probe;
+}
+
 export function renderMarkdown(md) {
   if (!md) return '';
   let text = escapeHtml(md);
@@ -74,8 +110,15 @@ export function renderMarkdown(md) {
     return `<ol>${items}</ol>`;
   });
 
-  // links
-  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  // links: only approved URL schemes survive, everything else is rendered as
+  // plain text so a crafted memory file cannot inject script URLs.
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label, rawUrl) => {
+    const url = sanitizeUrl(rawUrl);
+    if (!url) {
+      return `<span class="md-link-blocked" title="Blocked link scheme">${label}</span>`;
+    }
+    return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+  });
 
   // bold / italic (handle combined)
   text = text.replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>');

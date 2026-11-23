@@ -92,16 +92,46 @@ kimi-memory-setup --force
 
 `kimi-memory-setup` 会检测 `~/.kimi-code`，注入 `AGENTS.md` 记忆协议、安装 `memory-manage` Skill，并在 `mcp.json` 中注册 `kimi-memory` 服务器。
 
+安装是可逆的：每一步都会先备份原文件，并把写入内容、安装前是否已存在、备份位置写入 `~/.kimi-code/memory-setup/manifest.json`；任一步失败都会整体回滚到安装前的状态。
+
 ```bash
 # 预览变更，不写入文件
 kimi-memory-setup --dry-run
 
-# 移除注入的配置
+# 移除注入的配置（只删除本工具写入且之后未被修改的内容）
 kimi-memory-setup --undo
+
+# 清理安装备份
+kimi-memory-setup --purge-backups
 
 # 未全局安装时，也可通过 npx 运行
 npx -p kimi-code-memory-mcp-server kimi-memory-setup
 ```
+
+如果目标位置已存在本工具不拥有（例如你自己写的同名 Skill 或 `mcp.json` 中已有的 `kimi-memory` 条目），安装会停下并报告冲突，不会覆盖。此时显式使用 `--force` 才会覆盖，原内容仍会先备份。
+
+协议注入支持按项目启用：`kimi-memory-setup --scope workspace` 会把记忆协议写入当前项目目录的 `AGENTS.md`（可提交进版本库），而不影响机器上其他项目；`--scope workspace --undo` 只移除该项目的协议块。
+
+### 工作区数据维护（只操作当前目录对应的记忆库）
+
+```bash
+# 体检：dry-run 迁移报告（缺 ID/legacy 引用/孤儿/损坏文件），不修改任何东西
+kimi-memory-setup --doctor
+
+# 导出权威数据（memory/notes/essence/themes/searches/index）到目录
+kimi-memory-setup --export-data <dir>
+
+# 快照备份到 <store>/backups/<时间戳>/，默认保留 5 份
+kimi-memory-setup --backup-data --keep 5
+
+# 按保留期清理回收站 / essence 历史 / journal（默认 30 天）
+kimi-memory-setup --prune-data --older-than 30
+
+# 清除本工具派生的数据（主题/搜索视图/精炼库/历史/回收站/运行文件）
+kimi-memory-setup --purge-derived-data
+```
+
+破坏性维护命令都在工作区锁内执行；宿主拥有的 `wire.jsonl` 永远不会被触碰，报告中会列出残留数量。
 
 从源码构建：
 
@@ -125,7 +155,8 @@ npm run build
     "kimi-memory": {
       "command": "npx",
       "args": ["-y", "kimi-code-memory-mcp-server"],
-      "enabled": true
+      "enabled": true,
+      "deferred": true
     }
   }
 }
@@ -139,7 +170,8 @@ npm run build
     "kimi-memory": {
       "command": "node",
       "args": ["/absolute/path/to/kimi-code-memory-mcp-server/dist/server.js"],
-      "enabled": true
+      "enabled": true,
+      "deferred": true
     }
   }
 }
@@ -147,7 +179,7 @@ npm run build
 
 > **Windows 原生二进制注意**：如果裸 `node` / `npx` 报 `spawn ... ENOENT`，请将 `command` 换成可执行文件的绝对路径。`kimi-memory-setup` 会自动生成绝对路径，推荐优先使用。
 
-服务器名称必须保留为 **`kimi-memory`**，因为注入的规则通过 `mcp__kimi-memory__*` 调用工具。修改后重启 Kimi Code CLI。
+服务器名称必须保留为 **`kimi-memory`**，因为注入的规则通过 `mcp__kimi-memory__*` 调用工具。`deferred: true` 让支持动态工具的宿主在首轮通过 `select_tools` 加载启动工具，避免 MCP 尚未进入顶层快照时无法 bootstrap；不支持动态加载的宿主会忽略该字段并直接注入工具。修改后重启 Kimi Code CLI。
 
 </details>
 
@@ -156,6 +188,7 @@ npm run build
 
 - **`spawn npx ENOENT` / `spawn node ENOENT`**：改用 Node 与 `dist/server.js` 的绝对路径，或运行 `kimi-memory-setup --force`。
 - **改了 `mcp.json` 但 `/new` 后仍不生效**：连接失败会被当前进程缓存，需要重启 `kimi web` 或 CLI。
+- **首轮没有 `bootstrap_workspace`**：重新运行 `kimi-memory-setup` 以生成 `deferred: true` 和动态加载协议，然后重启 CLI；支持 `select_tools` 的宿主会在首轮按需加载启动工具。
 - **切换工作区后 MCP 不可用**：升级到 0.4.1+ 并重启，旧版本存在仪表盘端口竞态。
 - **启动时弹出多个仪表盘窗口**：升级到 0.5.1+ 并重启；同一工作区现在只保留一个仪表盘实例，多个 MCP 进程自动复用，只打开一个浏览器窗口。
 - **查看连接日志**：`~/.kimi-code/logs/kimi-code.log`。
@@ -164,15 +197,17 @@ npm run build
 
 ## 可视化仪表盘
 
-仪表盘默认随 MCP 服务器启动，地址为 `http://127.0.0.1:58628`；也可独立运行：
+仪表盘是一个仅监听本机回环地址的本地服务，默认**不会**自动启动。需要时设置 `KIMI_MEMORY_AUTO_VIS=1`（或 `true`）让 MCP 服务器随启动自动打开，也可独立运行：
 
 ```bash
 kimi-memory-vis
 ```
 
-支持工作区精要编辑、记忆浏览、主题时间线、搜索视图管理和中英文切换。使用 `--port`、`--no-open` 或 `--workspace` 可自定义启动方式，也可让 Agent 调用 `open_memory_dashboard`。
+支持工作区精要编辑、记忆浏览、主题时间线、搜索视图管理和中英文切换。使用 `--port`、`--no-open` 或 `--workspace` 可自定义启动方式，也可让 Agent 调用 `open_memory_dashboard`（浏览器地址通过 URL fragment 携带一次性引导令牌，页面读取后立即转入 `sessionStorage` 并清除 fragment）。
 
-仪表盘按工作区单例运行：Kimi Code 为同一工作区启动多个 MCP 进程时，只有第一个进程绑定端口并打开浏览器窗口，其余进程自动复用已有实例；不同工作区各自拥有独立仪表盘。设 `KIMI_MEMORY_AUTO_VIS=0` 可完全关闭自动启动。
+仪表盘所有 `/api/*` 读写均要求 Bearer 认证，并校验 Host/Origin（防 DNS rebinding 与跨站请求）；令牌只保存在工作区私有运行文件（`0600`）中，供同工作区的其他 MCP 进程认证复用。升级安装后，旧版本遗留的无认证实例不会被复用。
+
+仪表盘按工作区单例运行：Kimi Code 为同一工作区启动多个 MCP 进程时，只有第一个进程绑定端口并打开浏览器窗口，其余进程自动复用已有实例（每次复用都会先做认证探测）；不同工作区各自拥有独立仪表盘。
 
 ## 参考信息
 
@@ -185,11 +220,13 @@ kimi-memory-vis
 workspace-a1b2c3d4/
 ├── index.json              # 可重建的元数据缓存
 ├── memory/                 # decisions / knowledge / rules / reference
-├── essence/essence.md      # 工作区精要（建议 ≤15 KB）
+├── essence/essence.md      # 工作区精要（建议 ≤15 KB，history/ 保留最近 10 个旧版本）
 ├── notes/                  # 临时速记
 ├── themes/                 # 主题到轮次/记忆的引用
 ├── searches/               # 保存的搜索视图
-└── refined/refined.sqlite  # 轮次级摘要
+├── trash/                  # 已删除记忆（可用 restore_memory 恢复）
+├── refined/refined.sqlite  # 轮次级摘要
+└── runtime/                # 仪表盘运行文件（含访问令牌，0600）
 ```
 
 | 变量 | 用途 |
@@ -197,9 +234,15 @@ workspace-a1b2c3d4/
 | `MEMORY_STORE_ROOT` | 覆盖默认存储根目录。 |
 | `MEMORY_SESSIONS_ROOT` | 覆盖默认的 `~/.kimi-code/sessions` 路径。 |
 | `KIMI_CODE_HOME` | 从 `<KIMI_CODE_HOME>/sessions` 读取会话。 |
-| `KIMI_MEMORY_AUTO_VIS` | 是否自动启动仪表盘，默认开启。 |
+| `KIMI_MEMORY_AUTO_VIS` | 是否随 MCP 服务器自动启动仪表盘，默认关闭；设为 `1`/`true` 开启。 |
 | `KIMI_MEMORY_VIS_PORT` | 仪表盘起始端口，默认 `58628`，被占用时自动向后尝试。 |
-| `KIMI_MEMORY_VIS_HOST` | 仪表盘绑定地址，默认 `127.0.0.1`。 |
+| `KIMI_MEMORY_VIS_HOST` | 仪表盘绑定地址，默认 `127.0.0.1`，仅允许回环地址。 |
+| `KIMI_MEMORY_MAX_SCAN_BYTES` | 单次搜索的 wire 扫描字节预算（默认 32 MiB，超限返回 partial 结果）。 |
+| `KIMI_MEMORY_REDACT_PATTERNS` | 换行分隔的正则列表，写入精炼摘要前做尽力脱敏（不能保证清除所有秘密）。 |
+| `KIMI_MEMORY_BG_INDEX` | 后台增量精炼开关，默认开启；设为 `0` 关闭（如测试环境）。 |
+| `KIMI_MEMORY_FAULT` | 仅测试用故障注入（`点:动作` 列表），生产环境不要设置。 |
+
+数据边界：服务器不会主动打开 `.env`、SSH 私钥等敏感文件，只读取记忆存储、会话 `wire.jsonl` 与它自己拥有的配置文件。但会话内容会被处理——用户与助手的文本、工具参数与工具结果会被解析成轮次摘要，因此对话中出现过的密钥同样会进入本地摘要、搜索视图与工具返回结果。请把记忆目录当作敏感数据保管。
 
 </details>
 
@@ -239,11 +282,11 @@ workspace-a1b2c3d4/
 自动 setup 已包含这两步；仅手动安装时需要：
 
 ```bash
-cp AGENTS.md ~/.kimi-code/AGENTS.md
+cp assets/user-agents.md ~/.kimi-code/AGENTS.md
 cp -r skills/memory-manage ~/.kimi-code/skills/memory-manage
 ```
 
-`AGENTS.md` 负责会话启动时的记忆恢复与行为协议，Skill 负责识别用户的记忆相关意图。请确保 MCP 服务器注册名为 `kimi-memory`，并保持 `AGENTS.md` 只包含记忆相关约定。
+`assets/user-agents.md` 是记忆协议模板（`kimi-memory-setup` 会把它注入 `AGENTS.md` 的标记区块中）；仓库根目录的 `AGENTS.md` 是本仓库自身的开发约定，不要复制到用户目录。Skill 负责识别用户的记忆相关意图。请确保 MCP 服务器注册名为 `kimi-memory`，并保持 `AGENTS.md` 只包含记忆相关约定。
 
 </details>
 
@@ -253,9 +296,11 @@ cp -r skills/memory-manage ~/.kimi-code/skills/memory-manage
 git clone https://github.com/Zehee/kimi-code-memory-mcp-server.git
 cd kimi-code-memory-mcp-server
 npm install
-npm run build
-npm test
+npm run typecheck
 npm run lint
+npm run test:unit
+npm test
+npm run build
 ```
 
 贡献指南见 [`docs/CONTRIBUTING.zh-CN.md`](./docs/CONTRIBUTING.zh-CN.md)。
@@ -270,7 +315,7 @@ src/
 ├── vis-cli.ts             # kimi-memory-vis 仪表盘 CLI
 ├── theme-manager.ts       # 主题存储
 ├── refined-manager.ts     # 精炼轮次存储（node:sqlite）
-├── dao/                   # index.json DAO（v3-kv）与 Markdown 文件操作
+├── dao/                   # index.json DAO（3-kv）与 Markdown 文件操作
 ├── context/               # wire.jsonl 解析与上下文恢复
 ├── refine/                # 轮次提炼：提取器、存储、适配器
 ├── tools/                 # 工具 schema 与分发（记忆/上下文/主题/系统）

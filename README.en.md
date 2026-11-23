@@ -91,16 +91,48 @@ Restart `kimi web` or the CLI afterwards so the running MCP instance loads the n
 
 `kimi-memory-setup` detects `~/.kimi-code`, injects the `AGENTS.md` memory protocol, installs the `memory-manage` skill, and registers the `kimi-memory` server in `mcp.json`.
 
+The installation is reversible: every step backs up the original file first and records the written content, whether the target existed before, and the backup location in `~/.kimi-code/memory-setup/manifest.json`. If any step fails, the whole installation is rolled back to its previous state.
+
 ```bash
 # Preview changes without writing files
 kimi-memory-setup --dry-run
 
-# Remove the injected configuration
+# Remove the injected configuration (only content this tool wrote and that was not changed afterwards)
 kimi-memory-setup --undo
+
+# Delete the installation backups
+kimi-memory-setup --purge-backups
 
 # Alternatively, run through npx without a global install
 npx -p kimi-code-memory-mcp-server kimi-memory-setup
 ```
+
+If a target already contains content this tool does not own (for example a skill you wrote yourself, or an existing `kimi-memory` entry in `mcp.json`), the installation stops and reports the conflict instead of overwriting it. Use `--force` to overwrite explicitly; the original content is backed up first either way.
+
+Protocol injection can be enabled per project: `kimi-memory-setup --scope workspace` writes the memory protocol into the current project's own `AGENTS.md` (committable to version control) without touching other projects; `--scope workspace --undo` removes only that block.
+
+### Workspace data maintenance (operates on the store of the current directory)
+
+```bash
+# Health check: dry-run migration report (missing ids, legacy refs, orphans,
+# corrupt files) — changes nothing
+kimi-memory-setup --doctor
+
+# Export authoritative data (memory/notes/essence/themes/searches/index)
+kimi-memory-setup --export-data <dir>
+
+# Snapshot into <store>/backups/<timestamp>/, keeping the last 5 by default
+kimi-memory-setup --backup-data --keep 5
+
+# Retention pruning of trash / essence history / journal (default 30 days)
+kimi-memory-setup --prune-data --older-than 30
+
+# Remove this tool's derived data (themes, search views, refined SQLite,
+# history, trash, runtime files)
+kimi-memory-setup --purge-derived-data
+```
+
+Destructive maintenance commands run under the workspace lock; the host-owned `wire.jsonl` files are never touched and their count appears in the reports.
 
 Build from source:
 
@@ -124,7 +156,8 @@ Edit `~/.kimi-code/mcp.json`. To run through `npx`:
     "kimi-memory": {
       "command": "npx",
       "args": ["-y", "kimi-code-memory-mcp-server"],
-      "enabled": true
+      "enabled": true,
+      "deferred": true
     }
   }
 }
@@ -138,7 +171,8 @@ For a global install or source build, set `command` to `node` and `args` to the 
     "kimi-memory": {
       "command": "node",
       "args": ["/absolute/path/to/kimi-code-memory-mcp-server/dist/server.js"],
-      "enabled": true
+      "enabled": true,
+      "deferred": true
     }
   }
 }
@@ -146,7 +180,7 @@ For a global install or source build, set `command` to `node` and `args` to the 
 
 > **Native Windows binary**: if a bare `node` / `npx` fails with `spawn ... ENOENT`, set `command` to the executable's absolute path. `kimi-memory-setup` generates absolute paths automatically and is the recommended option.
 
-Keep the server name **`kimi-memory`**, because the injected rules call tools as `mcp__kimi-memory__*`. Restart Kimi Code CLI after changing the configuration.
+Keep the server name **`kimi-memory`**, because the injected rules call tools as `mcp__kimi-memory__*`. With `deferred: true`, hosts that support dynamic tools can load the bootstrap tool through `select_tools` on the first turn even when MCP tools are absent from the initial top-level snapshot. Hosts without dynamic loading ignore this field and inject the tools directly. Restart Kimi Code CLI after changing the configuration.
 
 </details>
 
@@ -155,6 +189,7 @@ Keep the server name **`kimi-memory`**, because the injected rules call tools as
 
 - **`spawn npx ENOENT` / `spawn node ENOENT`**: use absolute paths for Node and `dist/server.js`, or run `kimi-memory-setup --force`.
 - **Configuration changes do not take effect after `/new`**: a failed connection is cached by the current process; restart `kimi web` or the CLI.
+- **`bootstrap_workspace` is missing on the first turn**: rerun `kimi-memory-setup` to generate `deferred: true` and the dynamic-loading protocol, then restart the CLI. Hosts with `select_tools` load the bootstrap tool on demand during the first turn.
 - **MCP becomes unavailable after switching workspaces**: upgrade to 0.4.1+ and restart; older versions had a dashboard port race.
 - **Several dashboard windows open at startup**: upgrade to 0.5.1+ and restart; each workspace now keeps a single dashboard instance, reused by all MCP processes, with only one browser window.
 - **Connection logs**: `~/.kimi-code/logs/kimi-code.log`.
@@ -163,15 +198,17 @@ Keep the server name **`kimi-memory`**, because the injected rules call tools as
 
 ## Dashboard
 
-The dashboard starts automatically with the MCP server at `http://127.0.0.1:58628`. You can also run it independently:
+The dashboard is a local service bound to the loopback interface only. It does **not** start automatically by default; set `KIMI_MEMORY_AUTO_VIS=1` (or `true`) to have the MCP server open it on startup, or run it independently:
 
 ```bash
 kimi-memory-vis
 ```
 
-It supports workspace essence editing, memory browsing, theme timelines, search-view management, and Chinese/English switching. Customize startup with `--port`, `--no-open`, or `--workspace`, or ask your agent to call `open_memory_dashboard`.
+It supports workspace essence editing, memory browsing, theme timelines, search-view management, and Chinese/English switching. Customize startup with `--port`, `--no-open`, or `--workspace`, or ask your agent to call `open_memory_dashboard` (the browser URL carries a bootstrap token in the URL fragment; the page moves it into `sessionStorage` and strips the fragment immediately).
 
-The dashboard is a per-workspace singleton: when Kimi Code spawns several MCP processes for the same workspace, only the first one binds a port and opens a browser window; the others reuse the running instance. Different workspaces get independent dashboards. Set `KIMI_MEMORY_AUTO_VIS=0` to disable auto-start entirely.
+Every `/api/*` route requires Bearer authentication with Host/Origin validation (DNS-rebinding and cross-site protection). The token is stored only in a per-workspace runtime file (`0600`) that sibling MCP processes use for authenticated reuse. Instances left behind by older unauthenticated versions are never reused.
+
+The dashboard is a per-workspace singleton: when Kimi Code spawns several MCP processes for the same workspace, only the first one binds a port and opens a browser window; the others reuse the running instance (each reuse is re-probed with authentication). Different workspaces get independent dashboards.
 
 ## Reference
 
@@ -184,11 +221,13 @@ Data is stored under `~/.kimi-code-memory/<workspace-id>/` by default:
 workspace-a1b2c3d4/
 ├── index.json              # Rebuildable metadata cache
 ├── memory/                 # decisions / knowledge / rules / reference
-├── essence/essence.md      # Workspace essence (recommended ≤15 KB)
+├── essence/essence.md      # Workspace essence (recommended ≤15 KB; history/ keeps the last 10 versions)
 ├── notes/                  # Scratch notes
 ├── themes/                 # Theme-to-turn/memory references
 ├── searches/               # Saved search views
-└── refined/refined.sqlite  # Turn-level summaries
+├── trash/                  # Deleted memories (restorable via restore_memory)
+├── refined/refined.sqlite  # Turn-level summaries
+└── runtime/                # Dashboard runtime file (holds the access token, 0600)
 ```
 
 | Variable | Purpose |
@@ -196,9 +235,15 @@ workspace-a1b2c3d4/
 | `MEMORY_STORE_ROOT` | Override the default storage root. |
 | `MEMORY_SESSIONS_ROOT` | Override the default `~/.kimi-code/sessions` path. |
 | `KIMI_CODE_HOME` | Read sessions from `<KIMI_CODE_HOME>/sessions`. |
-| `KIMI_MEMORY_AUTO_VIS` | Whether to start the dashboard automatically; enabled by default. |
+| `KIMI_MEMORY_AUTO_VIS` | Whether to start the dashboard with the MCP server; disabled by default, set to `1`/`true` to enable. |
 | `KIMI_MEMORY_VIS_PORT` | Starting dashboard port, default `58628`; occupied ports are skipped automatically. |
-| `KIMI_MEMORY_VIS_HOST` | Dashboard bind address, default `127.0.0.1`. |
+| `KIMI_MEMORY_VIS_HOST` | Dashboard bind address, default `127.0.0.1`; loopback only. |
+| `KIMI_MEMORY_MAX_SCAN_BYTES` | Wire scan byte budget per search (default 32 MiB; over-budget scans return partial results). |
+| `KIMI_MEMORY_REDACT_PATTERNS` | Newline-separated regexes applied best-effort before refined turns are persisted (no guarantee that every secret is removed). |
+| `KIMI_MEMORY_BG_INDEX` | Background incremental refinement toggle, enabled by default; set to `0` to disable (e.g. in tests). |
+| `KIMI_MEMORY_FAULT` | Test-only fault injection (`point:action` list); never set in production. |
+
+Data boundary: the server does not open sensitive files such as `.env` or SSH private keys by itself; it reads the memory store, the session `wire.jsonl` and the configuration files it owns. Conversation content is still processed — user and assistant text as well as tool arguments and tool results are parsed into turn summaries — so a secret that appeared in a conversation can end up in the local summaries, the saved search views and the tool results. Treat the memory directory as sensitive data.
 
 </details>
 
@@ -238,11 +283,11 @@ workspace-a1b2c3d4/
 Automatic setup already performs both steps. For a manual installation:
 
 ```bash
-cp AGENTS.md ~/.kimi-code/AGENTS.md
+cp assets/user-agents.md ~/.kimi-code/AGENTS.md
 cp -r skills/memory-manage ~/.kimi-code/skills/memory-manage
 ```
 
-`AGENTS.md` provides memory recovery and behavioral protocols at session start, while the skill recognizes memory-related user intent. Keep the MCP server name `kimi-memory` and keep `AGENTS.md` focused on memory-related conventions.
+`assets/user-agents.md` is the memory protocol template (it is what `kimi-memory-setup` injects into the marked block of `AGENTS.md`); the repository root `AGENTS.md` holds the development conventions of this repository and must not be copied into a user directory. The skill recognizes memory-related user intent. Keep the MCP server name `kimi-memory` and keep `AGENTS.md` focused on memory-related conventions.
 
 </details>
 
@@ -252,9 +297,11 @@ cp -r skills/memory-manage ~/.kimi-code/skills/memory-manage
 git clone https://github.com/Zehee/kimi-code-memory-mcp-server.git
 cd kimi-code-memory-mcp-server
 npm install
-npm run build
-npm test
+npm run typecheck
 npm run lint
+npm run test:unit
+npm test
+npm run build
 ```
 
 See [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md) for contribution guidelines.
@@ -269,7 +316,7 @@ src/
 ├── vis-cli.ts             # kimi-memory-vis dashboard CLI
 ├── theme-manager.ts       # theme storage
 ├── refined-manager.ts     # refined turn storage (node:sqlite)
-├── dao/                   # index.json DAO (v3-kv) & Markdown file operations
+├── dao/                   # index.json DAO (3-kv) & Markdown file operations
 ├── context/               # wire.jsonl parsing & context recovery
 ├── refine/                # turn refinement: extractor, store, adapter
 ├── tools/                 # tool schemas & dispatch (memory/context/theme/system)

@@ -79,6 +79,37 @@ export const CATEGORY_HEADINGS: Record<string, string[]> = {
   notes: ['Notes', '备注', 'Note'],
 };
 
+/**
+ * SQLite schema version of the refined database.
+ *
+ * Version history:
+ *   1 — initial `refined_turns` table (no freshness metadata);
+ *   2 — freshness columns (`extractor_version`, `source_*`, `refined_at`) plus
+ *       the `refined_session_progress` table.
+ *
+ * Migrations are driven by `PRAGMA user_version` and run inside a transaction.
+ */
+export const REFINED_SCHEMA_VERSION = 2;
+
+/** Version of the deterministic turn extractor that produced a row. */
+export const EXTRACTOR_VERSION = '1';
+
+/**
+ * Sentinel used for rows whose source identity is unknown (legacy rows, or
+ * rows written before incremental indexing existed). Such rows must never be
+ * presented as fresh.
+ */
+export const FRESHNESS_UNKNOWN = 'unknown';
+
+/** Sentinel used for rows whose source is known to be out of date. */
+export const FRESHNESS_STALE = 'stale';
+
+/** Busy timeout applied to every SQLite connection (milliseconds). */
+export const SQLITE_BUSY_TIMEOUT_MS = 1000;
+
+/** Safety bound on rows pulled from SQLite in a single refined search. */
+export const REFINED_MAX_SCAN_ROWS = 50000;
+
 /** Slicing limits used during extraction and search. */
 export const LIMITS = {
   /** Max length of the user text snippet included in the summary. */

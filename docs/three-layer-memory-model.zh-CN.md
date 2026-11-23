@@ -47,12 +47,12 @@
 
 按用途分类的结构化 Markdown 文件：
 
-| 目录 | 用途 | 标签 |
-|---|---|---|
-| `memory/decisions/` | 架构与产品决策 | `decision` |
-| `memory/knowledge/` | 项目专属技术知识 | `knowledge` |
-| `memory/rules/` | 约定、红线与行为规范 | `rule` |
-| `memory/reference/` | 外部链接与文档引用 | `reference` |
+| 目录                | 用途                 | 标签        |
+| ------------------- | -------------------- | ----------- |
+| `memory/decisions/` | 架构与产品决策       | `decision`  |
+| `memory/knowledge/` | 项目专属技术知识     | `knowledge` |
+| `memory/rules/`     | 约定、红线与行为规范 | `rule`      |
+| `memory/reference/` | 外部链接与文档引用   | `reference` |
 
 每个文件都有 YAML frontmatter：
 
@@ -64,7 +64,7 @@ tags: [knowledge, memory, architecture]
 ---
 ```
 
-轻量的 `index.json` v3-kv 缓存记录文件路径、标题与标签。该缓存可通过 `sync_workspace_index` 从磁盘重建；Markdown 文件才是真相来源。
+轻量的 `index.json` 3-kv 缓存记录文件路径、标题与标签。该缓存可通过 `sync_workspace_index` 从磁盘重建；Markdown 文件才是真相来源。
 
 ---
 
@@ -87,10 +87,7 @@ tags: [knowledge, memory, architecture]
   "sessionId": "sess-a",
   "turnId": 42,
   "summary": "修复了 MCP 服务器启动时的端口占用问题",
-  "facts": [
-    "修改了 src/mcp/server.ts 的 listen() 逻辑",
-    "增加了端口回退机制 (3000 -> 3001)"
-  ],
+  "facts": ["修改了 src/mcp/server.ts 的 listen() 逻辑", "增加了端口回退机制 (3000 -> 3001)"],
   "entities": {
     "files": ["src/mcp/server.ts"],
     "tools": ["edit_file", "bash"],
@@ -109,12 +106,10 @@ tags: [knowledge, memory, architecture]
 {
   "theme": "memory-mcp-evolution",
   "turns": [
-    {"sessionId": "sess-a", "turnId": 12},
-    {"sessionId": "sess-b", "turnId": 3}
+    { "sessionId": "sess-a", "turnId": 12 },
+    { "sessionId": "sess-b", "turnId": 3 }
   ],
-  "memories": [
-    {"key": "agent-memory-three-layer-model", "folder": "memory"}
-  ]
+  "memories": [{ "key": "agent-memory-three-layer-model", "folder": "memory" }]
 }
 ```
 
@@ -124,10 +119,10 @@ tags: [knowledge, memory, architecture]
 
 ## 5. 按层划分的工具
 
-| 层 | 工具 |
-|---|---|
-| 持续认知 | `bootstrap_workspace`, `organize_memories` |
-| 持久化知识 | `remember`, `recall`, `search`, `list`, `move`, `delete`, `sync_workspace_index` |
+| 层           | 工具                                                                                                                          |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| 持续认知     | `bootstrap_workspace`, `organize_memories`                                                                                    |
+| 持久化知识   | `remember`, `recall`, `search`, `list`, `move`, `delete`, `sync_workspace_index`                                              |
 | 上下文与主题 | `load_more_context`, `search_context`, `refine_session_turns`, `load_turn_context`, `tag_theme`, `trace_theme`, `list_themes` |
 
 ---

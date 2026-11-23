@@ -12,34 +12,64 @@ npm install
 
 ## Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `npm test` | Run integration tests |
-| `npm run lint` | Run ESLint |
-| `npm run lint:fix` | Run ESLint with auto-fix |
-| `npm run format` | Format code with Prettier |
-| `npm start` | Start the MCP server |
+| Script                              | Purpose                                                                                                                       |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `npm run typecheck`                 | Type-check the sources and the tests                                                                                          |
+| `npm run lint`                      | Run ESLint                                                                                                                    |
+| `npm run lint:fix`                  | Run ESLint with auto-fix                                                                                                      |
+| `npm run test:unit`                 | Run the unit test suites                                                                                                      |
+| `npm test`                          | Run MCP, retrieval, storage, setup and dashboard integration tests                                                            |
+| `npm run build`                     | Sync the version, compile to `dist/` and copy the dashboard assets                                                            |
+| `npm run format`                    | Format code with Prettier                                                                                                     |
+| `npm start`                         | Start the MCP server                                                                                                          |
+| `npx tsx tests/setup.test.ts`       | Run only the setup / teardown tests (also included in `npm test`)                                                             |
+| `node scripts/release.mjs --verify` | Run the full release gates (clean tree, version consistency, typecheck, lint, unit, integration, build, `npm pack --dry-run`) |
 
 ## Before Submitting a Pull Request
 
-1. **Run tests**
+Run the checks in this order — it is the same order the release gates use:
+
+1. **Type-check**
+
    ```bash
-   npm test
+   npm run typecheck
    ```
 
-2. **Run linting**
+2. **Lint**
+
    ```bash
    npm run lint
    ```
 
-3. **Format code**
+3. **Unit tests**
+
+   ```bash
+   npm run test:unit
+   ```
+
+4. **Integration tests**
+
+   ```bash
+   npm test
+   ```
+
+5. **Build**
+
+   ```bash
+   npm run build
+   ```
+
+6. **Format code**
+
    ```bash
    npm run format
    ```
 
-4. **Update documentation** if your change affects user-facing behavior.
+7. **Update documentation** if your change affects user-facing behavior.
 
-5. **Update `CHANGELOG.md`** under the `Unreleased` section.
+8. **Update `CHANGELOG.md`** under the `Unreleased` section.
+
+> The release workflow refuses to publish from a dirty working tree. `git status --porcelain` must be empty — unstaged, staged **and** untracked files all block a release.
 
 ## Code Style
 
@@ -63,6 +93,7 @@ fix: handle missing frontmatter in recall
 Use the [bug report issue template](../.github/ISSUE_TEMPLATE/bug_report.md).
 
 Include:
+
 - Node.js version
 - Operating system
 - Steps to reproduce
@@ -74,6 +105,7 @@ Include:
 Use the [feature request issue template](../.github/ISSUE_TEMPLATE/feature_request.md).
 
 Explain:
+
 - The problem you want to solve
 - Your proposed solution
 - Why it fits the project's design principles

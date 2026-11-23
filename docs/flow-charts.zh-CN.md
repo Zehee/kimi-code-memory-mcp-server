@@ -224,26 +224,26 @@ flowchart LR
 
 每个工具的具体后端触点在 **第 2 节运行流程** 中展开；下表是速查（✓ = 直接读 / 写该组件）：
 
-| 工具 | MemoryStore | IndexDao | ThemeManager | RefinedManager | wire-context | vis |
-|------|:-----------:|:--------:|:------------:|:--------------:|:------------:|:---:|
-| remember | ✓ 写 | ✓ 写 | ✓ 可选 | | | |
-| recall | ✓ 读 | ✓ 写 | | | | |
-| search | ✓ 读（兜底） | ✓ 读 | | | | |
-| list / list_tags | | ✓ 读 | | | | |
-| delete / move | ✓ 写 | ✓ 写 | | | | |
-| load_more_context | | | | | ✓ 读 | |
-| search_context | | | | ✓ 读/写 | ✓ 读 | |
-| load_turn_context | | | | | ✓ 读 | |
-| list/delete_search_view | | | | ✓ 删（可选级联） | | |
-| tag_theme | ✓ 读 | | ✓ 写 | | ✓ 读 | |
-| trace_theme | | | ✓ 读 | ✓ 读 | ✓ 读 | |
-| list/delete_theme | | | ✓ 读/写 | | | |
-| refine_session_turns | | | | ✓ 写 | ✓ 读 | |
-| bootstrap_workspace | ✓ 读 | ✓ 写 | | | ✓ 读 | |
-| organize_memories | ✓ 读/写 | ✓ 写 | | | | |
-| sync_workspace_index | | ✓ 写 | | | | |
-| get_current_workspace | | | | | | |
-| open_memory_dashboard | | | | | | ✓ |
+| 工具                    | MemoryStore  | IndexDao | ThemeManager |  RefinedManager  | wire-context | vis |
+| ----------------------- | :----------: | :------: | :----------: | :--------------: | :----------: | :-: |
+| remember                |     ✓ 写     |   ✓ 写   |    ✓ 可选    |                  |              |     |
+| recall                  |     ✓ 读     |   ✓ 写   |              |                  |              |     |
+| search                  | ✓ 读（兜底） |   ✓ 读   |              |                  |              |     |
+| list / list_tags        |              |   ✓ 读   |              |                  |              |     |
+| delete / move           |     ✓ 写     |   ✓ 写   |              |                  |              |     |
+| load_more_context       |              |          |              |                  |     ✓ 读     |     |
+| search_context          |              |          |              |     ✓ 读/写      |     ✓ 读     |     |
+| load_turn_context       |              |          |              |                  |     ✓ 读     |     |
+| list/delete_search_view |              |          |              | ✓ 删（可选级联） |              |     |
+| tag_theme               |     ✓ 读     |          |     ✓ 写     |                  |     ✓ 读     |     |
+| trace_theme             |              |          |     ✓ 读     |       ✓ 读       |     ✓ 读     |     |
+| list/delete_theme       |              |          |   ✓ 读/写    |                  |              |     |
+| refine_session_turns    |              |          |              |       ✓ 写       |     ✓ 读     |     |
+| bootstrap_workspace     |     ✓ 读     |   ✓ 写   |              |                  |     ✓ 读     |     |
+| organize_memories       |   ✓ 读/写    |   ✓ 写   |              |                  |              |     |
+| sync_workspace_index    |              |   ✓ 写   |              |                  |              |     |
+| get_current_workspace   |              |          |              |                  |              |     |
+| open_memory_dashboard   |              |          |              |                  |              |  ✓  |
 
 ### 1.4 存储布局与数据所有权
 
@@ -253,10 +253,10 @@ flowchart TD
     MEMD["memory/<folder>/<key>.md<br/>真相来源 · 人可读 · git 友好"]
     ESS["essence/essence.md<br/>工作区精要 ≤15KB"]
     NOTES["notes/*.md<br/>临时速记（不进 essence）"]
-    IDXF["index.json (v3-kv)<br/>元数据缓存 · 可重建"]
+    IDXF["index.json (3-kv)<br/>元数据缓存 · 可重建"]
     THD["themes/<theme>.json<br/>theme → turn/memory 引用"]
-    SVD["searches/search-<md5>.json<br/>搜索视图 · 只存引用"]
-    RFD["refined/<sessionId>.jsonl + refined.sqlite<br/>轮次级原子摘要"]
+    SVD["searches/search-v2-<32hex>.json<br/>搜索视图 · 兼容 legacy ID"]
+    RFD["refined/refined.sqlite<br/>轮次级原子摘要"]
   end
 
   SRC["{sessionsRoot}/<ws>/<session>/wire.jsonl<br/>Kimi Code 会话线 · 只读来源"]
@@ -274,7 +274,7 @@ flowchart TD
 
 - **`.md` 优先**：`index.json` 只是 `memory/`、`essence/`、`notes/` 的元数据缓存（title / tags / folder comment / structureHash）。任何不一致都可通过 `sync_workspace_index` 从文件系统重建。
 - **`wire.jsonl` 只读**：本服务器从不改写 Kimi Code 的会话线（AGENTS.md 明令禁止）；`refined/`、`themes/`、`searches/` 只持有对 turn 的**引用**（`sessionId + turnId`），不复制正文。
-- **主题与搜索视图只存引用**：删除 theme 或 search view 不会删除被引用的 memory / refined turn；`delete_search_view` 仅在显式 `deleteRefinedTurns=true` 时才级联清理精炼轮次。
+- **主题与搜索视图只存引用**：删除 theme 或 search view 不会删除被引用的 memory / refined turn；`delete_search_view` 仅在显式 `deleteRefinedTurns=true` 时才级联清理当前精炼缓存。该清理不是永久墓碑，后台索引后续会从 wire 重建缺失行。
 
 ---
 
@@ -610,20 +610,20 @@ flowchart TD
 
 ## 3. 速查：模块职责一句话
 
-| 层 | 模块 | 职责 |
-|----|------|------|
-| L4 | `server.ts` | 装配 `Ctx`、注册 6 个 MCP handler、连接 stdio、可选自启仪表盘 |
-| L4 | `vis-cli.ts` / `vis/server.ts` / `vis/api.ts` | 独立 Hono 仪表盘，复用 `Ctx` 读取 `{storeRoot}` |
-| L4 | `setup.ts` / `setup-cli.ts` | 向 `~/.kimi-code` 注入 AGENTS.md 协议、Skill、`mcp.json` |
-| L3 | `tools/*` | 22 个工具的 schema + handler + dispatch |
-| L3 | `prompts/index.ts` | 3 个 MCP Prompt（决策检查 / 主题追溯 / 会话总结） |
-| L3 | `resources/index.ts` | `memory://`、`theme://`、`essence://` 资源读取 |
-| L2 | `theme-manager.ts` | `themes/<theme>.json` 关联存储（Mutex + 原子写） |
-| L2 | `refined-manager.ts` | 精炼轮次编排 + 写互斥；门面 |
-| L1 | `dao/index.ts` + 4 协作类 | `index.json` v3-kv 缓存的持久化/重建/查询/渲染 |
-| L1 | `dao/memory-store.ts` | Markdown + frontmatter 读写移（safeResolve + atomicWriteFile） |
-| L1 | `context/wire-context.ts` | 发现/解析/搜索 Kimi Code `wire.jsonl`，构建上下文窗口 |
-| L1 | `refine/store.ts` / `extractor.ts` / `adapter.ts` | 精炼轮次的 SQLite 持久化、实体动作抽取、行列映射 |
-| L0 | `utils/*` | 路径/校验/frontmatter/文件/搜索/日期/互斥锁等纯函数与工具 |
+| 层  | 模块                                              | 职责                                                              |
+| --- | ------------------------------------------------- | ----------------------------------------------------------------- |
+| L4  | `server.ts`                                       | 装配 `Ctx`、注册 6 个 MCP handler、连接 stdio、可选自启仪表盘     |
+| L4  | `vis-cli.ts` / `vis/server.ts` / `vis/api.ts`     | 独立 Hono 仪表盘，复用 `Ctx` 读取 `{storeRoot}`                   |
+| L4  | `setup.ts` / `setup-cli.ts`                       | 向 `~/.kimi-code` 注入 AGENTS.md 协议、Skill、`mcp.json`          |
+| L3  | `tools/*`                                         | 24 个工具的 schema + handler + dispatch                           |
+| L3  | `prompts/index.ts`                                | 3 个 MCP Prompt（决策检查 / 主题追溯 / 会话总结）                 |
+| L3  | `resources/index.ts`                              | `memory://`、`theme://`、`essence://` 资源读取                    |
+| L2  | `theme-manager.ts`                                | `themes/<theme>.json` 关联存储（Mutex + 工作区跨进程锁 + 原子写） |
+| L2  | `refined-manager.ts`                              | 精炼轮次编排 + 写互斥；门面                                       |
+| L1  | `dao/index.ts` + 4 协作类                         | `index.json` 3-kv 缓存的持久化/重建/查询/渲染                     |
+| L1  | `dao/memory-store.ts`                             | Markdown + frontmatter 读写移（safeResolve + atomicWriteFile）    |
+| L1  | `context/wire-context.ts`                         | 发现/解析/搜索 Kimi Code `wire.jsonl`，构建上下文窗口             |
+| L1  | `refine/store.ts` / `extractor.ts` / `adapter.ts` | 精炼轮次的 SQLite 持久化、实体动作抽取、行列映射                  |
+| L0  | `utils/*`                                         | 路径/校验/frontmatter/文件/搜索/日期/互斥锁等纯函数与工具         |
 
 > 维护提示：新增工具时，在对应 `tools/*-tools.ts` 增加 `ToolDefinition` 即可被 `tools/index.ts` 自动聚合；新增持久化只读来源时优先复用 `wire-context` / `dao`，新增可变状态务必走现有 `Mutex` / `runExclusive` 路径，避免与 `index.json`、`refined.sqlite`、`themes/*.json` 的并发写冲突。

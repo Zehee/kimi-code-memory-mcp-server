@@ -31,7 +31,12 @@ function cleanupTempDirectories() {
     if (!entry.isDirectory()) continue;
     if (!TEST_TEMP_PREFIXES.some((prefix) => entry.name.startsWith(prefix))) continue;
     try {
-      fs.rmSync(path.join(os.tmpdir(), entry.name), { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      fs.rmSync(path.join(os.tmpdir(), entry.name), {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 100,
+      });
     } catch {
       // Ignore Windows lock cleanup issues.
     }
@@ -46,8 +51,13 @@ function killOrphanedTestServers() {
   try {
     const ps =
       'Get-WmiObject Win32_Process -Filter "Name=\'node.exe\'" | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress';
-    const output = execFileSync('powershell', ['-NoProfile', '-Command', ps], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] });
-    const parsed = JSON.parse(output) as { ProcessId?: number; CommandLine?: string } | Array<{ ProcessId?: number; CommandLine?: string }>;
+    const output = execFileSync('powershell', ['-NoProfile', '-Command', ps], {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const parsed = JSON.parse(output) as
+      | { ProcessId?: number; CommandLine?: string }
+      | Array<{ ProcessId?: number; CommandLine?: string }>;
     const procs = Array.isArray(parsed) ? parsed : [parsed];
     for (const proc of procs) {
       const pid = proc.ProcessId;
@@ -55,7 +65,10 @@ function killOrphanedTestServers() {
       if (!pid || !cmdLine.includes(SERVER_MARKER)) continue;
       if (cmdLine.includes('.kimi-code') && cmdLine.includes('dist\\server.js')) continue;
       try {
-        execFileSync('taskkill', ['/T', '/F', '/PID', String(pid)], { windowsHide: true, stdio: ['ignore', 'ignore', 'ignore'] });
+        execFileSync('taskkill', ['/T', '/F', '/PID', String(pid)], {
+          windowsHide: true,
+          stdio: ['ignore', 'ignore', 'ignore'],
+        });
       } catch {
         // Already exited or access denied; ignore.
       }
@@ -86,7 +99,10 @@ function killProcessTree(pid: number | null) {
   if (pid === null) return;
   if (process.platform === 'win32') {
     try {
-      execFileSync('taskkill', ['/T', '/F', '/PID', String(pid)], { windowsHide: true, stdio: ['ignore', 'ignore', 'ignore'] });
+      execFileSync('taskkill', ['/T', '/F', '/PID', String(pid)], {
+        windowsHide: true,
+        stdio: ['ignore', 'ignore', 'ignore'],
+      });
     } catch {
       // Already exited or access denied; ignore.
     }
@@ -191,6 +207,65 @@ async function testRememberAndRecall() {
     assert(result.found);
     assert(result.content.includes('We chose A over B'));
     assert(result.tags.includes('decision'));
+  });
+}
+
+async function testRevisionConflictAndEmptyTags() {
+  await withClient(async (client) => {
+    const created = parseJsonResult(
+      await client.callTool({
+        name: 'remember',
+        arguments: {
+          key: 'revision-test',
+          folder: 'memory/decisions',
+          content: 'first revision',
+          tags: ['decision'],
+        },
+      }),
+    );
+    assert(created.success, JSON.stringify(created));
+    assert(typeof created.id === 'string' && created.id.length > 0);
+    assert(Number.isInteger(created.revision));
+    assert(typeof created.contentHash === 'string' && created.contentHash.length > 0);
+
+    const conflict = parseJsonResult(
+      await client.callTool({
+        name: 'remember',
+        arguments: {
+          key: 'revision-test',
+          folder: 'memory/decisions',
+          content: 'must not overwrite',
+          expectedRevision: created.revision + 1,
+        },
+      }),
+    );
+    assert(conflict.error, 'stale expectedRevision must be rejected');
+
+    const updated = parseJsonResult(
+      await client.callTool({
+        name: 'remember',
+        arguments: {
+          key: 'revision-test',
+          folder: 'memory/decisions',
+          content: 'second revision',
+          tags: [],
+          expectedRevision: created.revision,
+        },
+      }),
+    );
+    assert(updated.success, JSON.stringify(updated));
+    assert(updated.revision > created.revision);
+
+    const recalled = parseJsonResult(
+      await client.callTool({
+        name: 'recall',
+        arguments: { key: 'revision-test', folder: 'memory/decisions' },
+      }),
+    );
+    assert(recalled.found);
+    assert.strictEqual(recalled.content, 'second revision');
+    assert.deepStrictEqual(recalled.tags, []);
+    assert.strictEqual(recalled.id, created.id);
   });
 }
 
@@ -304,6 +379,60 @@ async function testSyncWorkspaceIndex() {
   });
 }
 
+async function testBootstrapReportsCorruptFile() {
+  // Review round 6 follow-up: bootstrap_workspace must surface reconcile
+  // problems (corrupt files) instead of silently swallowing them.
+  await withClient(async (client) => {
+    await client.callTool({
+      name: 'remember',
+      arguments: { key: 'healthy-item', content: 'healthy content', tags: ['knowledge'] },
+    });
+
+    // A memory file that fails strict frontmatter parsing.
+    const workspaceId = (
+      parseJsonResult(
+        await client.callTool({ name: 'get_current_workspace', arguments: {} }),
+      ) as { workspaceId: string }
+    ).workspaceId;
+    const storeRoot = path.join(testStoreRoot, workspaceId);
+    const brokenPath = path.join(storeRoot, 'memory', 'bootstrap-broken.md');
+    const brokenBody = ['---', 'key: "a"', 'key: "b"', '---', '', 'broken body'].join('\n');
+    fs.writeFileSync(brokenPath, brokenBody, 'utf8');
+
+    const boot = parseJsonResult(
+      await client.callTool({ name: 'bootstrap_workspace', arguments: {} }),
+    ) as { indexIssues?: { corruptFiles: string[]; errors: string[] } };
+    assert(boot.indexIssues, 'bootstrap exposes indexIssues');
+    assert(
+      boot.indexIssues.corruptFiles.some((f) => f.includes('bootstrap-broken.md')),
+      `the corrupt file is reported: ${JSON.stringify(boot.indexIssues.corruptFiles)}`,
+    );
+    assert(
+      boot.indexIssues.errors.length > 0,
+      'the errors array carries the parse failure',
+    );
+
+    // Repair the file: the issue clears on the next bootstrap.
+    const fixedBody = [
+      '---',
+      'key: "bootstrap-broken"',
+      'title: "Fixed"',
+      '---',
+      '',
+      'fixed body',
+    ].join('\n');
+    fs.writeFileSync(brokenPath, fixedBody, 'utf8');
+    const boot2 = parseJsonResult(
+      await client.callTool({ name: 'bootstrap_workspace', arguments: {} }),
+    ) as { indexIssues: { corruptFiles: string[]; errors: string[] } };
+    assert(
+      !boot2.indexIssues.corruptFiles.some((f) => f.includes('bootstrap-broken.md')),
+      'a repaired file clears the report',
+    );
+    fs.rmSync(brokenPath, { force: true });
+  });
+}
+
 async function testTagThemeAndTrace() {
   await withClient(async (client) => {
     await client.callTool({
@@ -360,18 +489,56 @@ async function testListThemes() {
 }
 
 async function testRefineSessionTurns() {
-  await withClient(async (client) => {
-    const result = parseJsonResult(
-      await client.callTool({ name: 'refine_session_turns', arguments: {} }),
-    );
-    // Result depends on whether a current session wire exists. Both shapes are valid.
-    if (result.success) {
-      assert(typeof result.refinedCount === 'number');
-      assert(typeof result.outputPath === 'string');
-    } else {
-      assert(result.error);
-    }
-  });
+  const tmpSessions = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-refine-manual-'));
+  const cwd = process.cwd().split(path.sep).join('/');
+  const workspaceDirName = `wd_${path.basename(cwd)}_${computeWorkspaceHash(cwd)}`;
+  const sessionId = 'session_refine_manual';
+  const timestamp = '2026-06-24T12:00:00.000Z';
+  createTempSessionWire(tmpSessions, workspaceDirName, sessionId, [
+    { user: 'manual refinement', agent: 'OLD ANSWER', timestamp },
+  ]);
+  const previousSessionsRoot = process.env.MEMORY_SESSIONS_ROOT;
+  process.env.MEMORY_SESSIONS_ROOT = tmpSessions;
+  try {
+    await withClient(async (client) => {
+      const workspaceId = parseJsonResult(
+        await client.callTool({ name: 'get_current_workspace', arguments: {} }),
+      ).workspaceId as string;
+      const readState = () => {
+        const manager = new RefinedManager(path.join(testStoreRoot, workspaceId, 'refined'));
+        try {
+          return {
+            hash: manager.listRefinedTurnStates(sessionId)[0]?.sourceContentHash,
+            summary: manager.loadRefinedTurn(sessionId, 0)?.summary,
+          };
+        } finally {
+          manager.close();
+        }
+      };
+
+      const first = parseJsonResult(
+        await client.callTool({ name: 'refine_session_turns', arguments: { sessionId } }),
+      );
+      assert.strictEqual(first.success, true);
+      const initial = readState();
+      assert(initial.hash, 'manual refinement records source provenance');
+
+      createTempSessionWire(tmpSessions, workspaceDirName, sessionId, [
+        { user: 'manual refinement', agent: 'NEW LONGER ANSWER', timestamp },
+      ]);
+      const second = parseJsonResult(
+        await client.callTool({ name: 'refine_session_turns', arguments: { sessionId } }),
+      );
+      assert.strictEqual(second.success, true);
+      const updated = readState();
+      assert(updated.summary?.includes('NEW LONGER ANSWER'));
+      assert.notStrictEqual(updated.hash, initial.hash, 'manual refinement refreshes the source hash');
+    });
+  } finally {
+    if (previousSessionsRoot === undefined) delete process.env.MEMORY_SESSIONS_ROOT;
+    else process.env.MEMORY_SESSIONS_ROOT = previousSessionsRoot;
+    fs.rmSync(tmpSessions, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
 }
 
 async function testRefinedManagerSQLite() {
@@ -454,7 +621,8 @@ function testRefineTurnExtraction() {
     'should categorize items under Current Focus heading',
   );
   assert(
-    refined.categories.completed && refined.categories.completed.some((f) => f.includes('tsconfig')),
+    refined.categories.completed &&
+      refined.categories.completed.some((f) => f.includes('tsconfig')),
     'should categorize items under 已完成 heading',
   );
   assert(
@@ -560,8 +728,13 @@ async function testConfigurableSessionsRoot() {
         }),
       );
       assert(Array.isArray(result.matches));
-      assert(result.matches.length >= 1, 'search_context should find turn in configurable sessions root');
-      assert(result.matches.some((m: { sessionId: string }) => m.sessionId === 'session_configurable'));
+      assert(
+        result.matches.length >= 1,
+        'search_context should find turn in configurable sessions root',
+      );
+      assert(
+        result.matches.some((m: { sessionId: string }) => m.sessionId === 'session_configurable'),
+      );
     });
   } finally {
     if (previousSessionsRoot === undefined) {
@@ -612,7 +785,10 @@ async function testClusterMaxSize() {
       assert(Array.isArray(result.clusters));
       assert(result.clusters.length >= 1);
       for (const cluster of result.clusters) {
-        assert(cluster.memberCount <= 3, `cluster size ${cluster.memberCount} exceeds max_cluster_size 3`);
+        assert(
+          cluster.memberCount <= 3,
+          `cluster size ${cluster.memberCount} exceeds max_cluster_size 3`,
+        );
       }
     });
   } finally {
@@ -686,6 +862,12 @@ async function testSearchContextReturnsRefinedForMissingWire() {
         !result.skippedSessions.includes(sessionId),
         'missing wire should not be reported as skipped when refined data exists',
       );
+      assert(
+        result.matches
+          .filter((m: { sessionId: string }) => m.sessionId === sessionId)
+          .every((m: { source?: string }) => m.source === 'refined-only'),
+        'refined fallback must be distinguishable from original wire content',
+      );
     });
   } finally {
     if (previousSessionsRoot === undefined) {
@@ -703,8 +885,29 @@ async function testSearchContextReturnsRefinedForMissingWire() {
 
 async function testListSearchViews() {
   await withClient(async (client) => {
-    const result = parseJsonResult(await client.callTool({ name: 'list_search_views', arguments: {} }));
-    assert(Array.isArray(result.views));
+    const before = parseJsonResult(
+      await client.callTool({ name: 'list_search_views', arguments: { limit: 100 } }),
+    );
+    assert(Array.isArray(before.views));
+    for (const view of before.views) {
+      assert(
+        /^search-(?:[a-f0-9]{12}|v2-[a-f0-9]{32})$/.test(
+          view.key || view.fileName.replace(/\.json$/, ''),
+        ),
+      );
+    }
+
+    const searched = parseJsonResult(
+      await client.callTool({
+        name: 'search_context',
+        arguments: { query: 'query without a persisted view', save_view: false },
+      }),
+    );
+    assert(!searched.error);
+    const after = parseJsonResult(
+      await client.callTool({ name: 'list_search_views', arguments: { limit: 100 } }),
+    );
+    assert.strictEqual(after.views.length, before.views.length);
   });
 }
 
@@ -771,9 +974,7 @@ async function testResourcesRead() {
     });
     assert(Array.isArray(result.contents));
     assert(result.contents.length >= 1);
-    assert(
-      (result.contents[0] as { text?: string }).text?.includes('Readable content 99'),
-    );
+    assert((result.contents[0] as { text?: string }).text?.includes('Readable content 99'));
   });
 }
 
@@ -811,6 +1012,7 @@ async function testSetupIntegration() {
     assert(agentsContent.includes('<!-- KIMI-MEMORY-INJECTED-START -->'));
     assert(agentsContent.includes('<!-- KIMI-MEMORY-INJECTED-END -->'));
     assert(agentsContent.includes('mcp__kimi-memory__bootstrap_workspace'));
+    assert(agentsContent.includes('select_tools(names=["mcp__kimi-memory__bootstrap_workspace"])'));
 
     const mcpConfig = JSON.parse(fs.readFileSync(mcpJsonPath, 'utf8'));
     assert(mcpConfig.mcpServers['kimi-memory']);
@@ -818,6 +1020,7 @@ async function testSetupIntegration() {
     const serverArg = mcpConfig.mcpServers['kimi-memory'].args[0];
     assert(serverArg.endsWith(path.join('dist', 'server.js')));
     assert(fs.existsSync(serverArg), `server entry should point at an existing file: ${serverArg}`);
+    assert.strictEqual(mcpConfig.mcpServers['kimi-memory'].deferred, true);
     assert.strictEqual(mcpConfig.mcpServers['kimi-memory'].startupTimeoutMs, 120000);
 
     // Re-running should update, not duplicate.
@@ -827,15 +1030,21 @@ async function testSetupIntegration() {
     const startCount = (updatedAgents.match(/KIMI-MEMORY-INJECTED-START/g) || []).length;
     assert.strictEqual(startCount, 1, 'injected block should appear exactly once');
 
-    // Undo removes everything.
+    // Undo removes everything the install created.
     const undoResult = await runSetup({ kimiCodeHome: tmpHome, undo: true });
     assert(undoResult.actions.some((a) => a.includes('Removed')));
-    const undoneAgents = fs.readFileSync(agentsMdPath, 'utf8');
-    assert(!undoneAgents.includes('KIMI-MEMORY-INJECTED-START'));
-
-    const undoneMcp = JSON.parse(fs.readFileSync(mcpJsonPath, 'utf8'));
-    assert(!undoneMcp.mcpServers['kimi-memory']);
+    // AGENTS.md and mcp.json did not exist before the install, so the undo
+    // removes them again instead of leaving an empty file behind.
+    if (fs.existsSync(agentsMdPath)) {
+      const undoneAgents = fs.readFileSync(agentsMdPath, 'utf8');
+      assert(!undoneAgents.includes('KIMI-MEMORY-INJECTED-START'));
+    }
+    if (fs.existsSync(mcpJsonPath)) {
+      const undoneMcp = JSON.parse(fs.readFileSync(mcpJsonPath, 'utf8'));
+      assert(!undoneMcp.mcpServers || !undoneMcp.mcpServers['kimi-memory']);
+    }
     assert(!fs.existsSync(skillPath));
+    assert(!fs.existsSync(path.join(tmpHome, 'memory-setup', 'manifest.json')));
   } finally {
     try {
       fs.rmSync(tmpHome, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
@@ -848,11 +1057,13 @@ async function testSetupIntegration() {
 const tests = [
   testGetCurrentWorkspace,
   testRememberAndRecall,
+  testRevisionConflictAndEmptyTags,
   testSearch,
   testListAndTags,
   testMoveAndDelete,
   testOrganizeMemories,
   testSyncWorkspaceIndex,
+  testBootstrapReportsCorruptFile,
   testTagThemeAndTrace,
   testListThemes,
   testRefineSessionTurns,

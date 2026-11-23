@@ -14,7 +14,8 @@ import { IndexDao } from './dao/index.js';
 import { MemoryStore } from './dao/memory-store.js';
 import { ThemeManager } from './theme-manager.js';
 import { RefinedManager } from './refined-manager.js';
-import { startVisServer } from './vis/server.js';
+import { findReusableVisServer, startStandaloneVisServer } from './vis/auto-start.js';
+import { buildBrowserUrl } from './vis/security.js';
 import type { Ctx } from './types.js';
 
 const MCP_SERVER_PORT = 58627;
@@ -120,34 +121,50 @@ async function main() {
 
   const mcpRunning = await detectMcpServer(MCP_SERVER_PORT);
 
-  const server = startVisServer({
-    ctx,
+  const existing = await findReusableVisServer(ctx);
+  if (existing) {
+    console.log(`\n  kimi-memory-vis already running at ${existing.url}`);
+    console.log(`  Workspace: ${cwd}`);
+    if (args.openBrowser) {
+      open(buildBrowserUrl(existing.url, existing.token)).catch((err) => {
+        console.error(`  Could not open browser: ${err.message}`);
+      });
+    }
+    return;
+  }
+
+  const handle = await startStandaloneVisServer(ctx, {
     port: args.port,
     hostname: '127.0.0.1',
-    onReady: (url) => {
-      console.log(`\n  kimi-memory-vis running at ${url}`);
-      console.log(`  Workspace: ${cwd}`);
-      console.log(`  Store:     ${storeRoot}`);
-      if (mcpRunning) {
-        console.log(`  MCP server detected at http://127.0.0.1:${MCP_SERVER_PORT}`);
-      }
-      if (args.openBrowser) {
-        open(url).catch((err) => {
-          console.error(`  Could not open browser: ${err.message}`);
-        });
-      }
-    },
   });
+
+  console.log(`\n  kimi-memory-vis running at ${handle.url}`);
+  console.log(`  Workspace: ${cwd}`);
+  console.log(`  Store:     ${storeRoot}`);
+  if (mcpRunning) {
+    console.log(`  MCP server detected at http://127.0.0.1:${MCP_SERVER_PORT}`);
+  }
+  if (args.openBrowser) {
+    open(handle.browserUrl).catch((err) => {
+      console.error(`  Could not open browser: ${err.message}`);
+    });
+  }
+
+  const shutdown = () => {
+    ctx.refinedManager.close();
+    handle.close().then(
+      () => process.exit(0),
+      () => process.exit(0),
+    );
+  };
 
   process.on('SIGINT', () => {
     console.log('\n  Shutting down...');
-    ctx.refinedManager.close();
-    server.close(() => process.exit(0));
+    shutdown();
   });
 
   process.on('SIGTERM', () => {
-    ctx.refinedManager.close();
-    server.close(() => process.exit(0));
+    shutdown();
   });
 }
 
