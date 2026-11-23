@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- build before integration tests in release gates ([727ec4c](https://github.com/Zehee/kimi-code-memory-mcp-server/commit/727ec4c99ef31fe4413b4c04a81aec52e646bbb7))
+
 ## [0.6.0] - 2026-11-23
 ### Added
 - prepare v0.6.0 ([749a83e](https://github.com/Zehee/kimi-code-memory-mcp-server/commit/749a83e4de7bd65ed5a243e3a0ee35d7dc54c56e))
